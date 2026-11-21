@@ -72,32 +72,28 @@ Preserved from the previous prototypes before cleanup:
 
 ---
 
-## Proposed Project Structure
+## Architecture & Design Specifications
+
+Detailed architecture and specifications live in `/design`:
+- [`design/ARCHITECTURE.md`](design/ARCHITECTURE.md) — System invariants, root project layout, state flow, notification lifecycle, dependency matrix.
+- [`design/DATA_MODEL.md`](design/DATA_MODEL.md) — Single-table SQLite schema (`fast_records` for active + completed fasts), non-overlapping time validation, streak math, versioned JSON backup format.
+- [`design/UI_SPEC.md`](design/UI_SPEC.md) — Dark-first theme tokens, adaptive 3-tab shell, screen states, and `FastEditorSheet` validation UX.
 
 ```text
-fast_o_clock/              # Fresh `flutter create` project
+/Volumes/Dev/lab/fast-o-clock/  # Root Flutter project (legacy prototypes in _archive/)
+├── design/
+│   ├── ARCHITECTURE.md
+│   ├── DATA_MODEL.md
+│   └── UI_SPEC.md
 ├── lib/
 │   ├── main.dart
-│   ├── app.dart           # MaterialApp, theme, bottom navigation
-│   ├── models/
-│   │   ├── fast_record.dart
-│   │   ├── fast_protocol.dart
-│   │   └── metabolic_stage.dart
-│   ├── services/
-│   │   ├── storage_service.dart       # sqflite (history) + shared_preferences (active fast/settings)
-│   │   └── notification_service.dart  # flutter_local_notifications + timezone
-│   ├── state/
-│   │   └── fasting_controller.dart    # ChangeNotifier managing active fast, history, settings
-│   ├── screens/
-│   │   ├── fasting_screen.dart
-│   │   ├── timeline_screen.dart
-│   │   └── settings_screen.dart
-│   └── widgets/
-│       ├── timer_ring.dart
-│       ├── protocol_picker.dart
-│       └── time_edit_sheet.dart
+│   ├── app.dart
+│   ├── models/        (fast_record, fast_protocol, metabolic_stage, app_settings)
+│   ├── services/      (database_service, preferences_service, notification_service, backup_service)
+│   ├── state/         (fasting_controller)
+│   ├── screens/       (onboarding_screen, fasting_screen, timeline_screen, settings_screen)
+│   └── widgets/       (timer_ring, metabolic_badge, protocol_picker, fast_editor_sheet)
 └── test/
-    └── fasting_controller_test.dart
 ```
 
 ---
@@ -106,14 +102,14 @@ fast_o_clock/              # Fresh `flutter create` project
 
 1. **Phase 0 — Archive & Bootstrap**
    - Move `fast-o-clock-app`, `fastoclock-flutter`, `fast-oclock` into `_archive/`.
-   - Run `flutter create` for fresh project; add core dependencies; configure Android/iOS app name, bundle ID, and notification permissions.
+   - Run `flutter create` at repository root; add core dependencies; configure Android/iOS app name, bundle ID (`com.neurral.fast_oclock`), and notification permissions.
 2. **Phase 1 — Data & Controller**
-   - Implement `FastRecord`, `FastProtocol`, `MetabolicStage`, `StorageService`, and `FastingController` with unit tests for timer math and edge cases (start time in past, goal change mid-fast, midnight crossing).
+   - Implement `FastRecord`, `FastProtocol`, `MetabolicStage`, `AppSettings`, `DatabaseService` (single SQLite table + overlap validation), `PreferencesService`, `BackupService`, and `FastingController` with unit tests.
 3. **Phase 2 — Core UI**
-   - Build 3-tab shell (`Fasting`, `Timeline`, `Settings`), `TimerRing`, protocol selector, and start/end time editor.
+   - Build adaptive 3-tab shell (`Fasting`, `Timeline`, `Settings`) + `OnboardingScreen`, `TimerRing`, `MetabolicBadge`, `ProtocolPicker`, and `FastEditorSheet`.
 4. **Phase 3 — Notifications**
-   - Wire `NotificationService` to schedule/cancel goal-complete and eating-window alerts on Android & iOS.
+   - Wire `NotificationService` to schedule/cancel Goal Reached (`1001`) and Eating Window (`1002`, `<24h` protocols) alerts on Android & iOS.
 5. **Phase 4 — History, Stats & Backup**
-   - Add timeline list, edit/delete/manual-add, streak/weekly summary, and JSON export/import.
+   - Wire timeline list, edit/delete/manual-add with overlap checks, consecutive goal-met day streak & 7-day bar, and JSON export/import (Merge by ID + Replace All).
 6. **Phase 5 — Polish & Family Distribution**
    - App icon, splash screen, physical device testing, release APK (Android) / Xcode archive or TestFlight (iOS).
