@@ -58,27 +58,26 @@ class FastingScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: Column(
               children: [
-                // Header: Title + Protocol selector chip
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                // Header: Centered Title/Tagline + Protocol selector chip
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Fast O'Clock",
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'time to fast',
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      "Fast O'Clock",
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        fontVariations: const [FontVariation.weight(800)],
+                      ),
                     ),
+                    Text(
+                      'your time to fast',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                     ActionChip(
                       avatar: const Icon(Icons.tune_rounded, size: 18),
                       label: Text('${protocol.label} Preset'),
@@ -98,7 +97,7 @@ class FastingScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 20),
 
                 // Main Circular Timer Ring
                 TimerRing(
