@@ -6,12 +6,21 @@ void main() {
     test('maps elapsed hours to expected stage boundaries', () {
       expect(
         MetabolicStage.forElapsedDuration(const Duration(hours: 0)).id,
-        'fed',
+        'blood_sugar_rise',
+      );
+      expect(
+        MetabolicStage.forElapsedDuration(const Duration(hours: 1, minutes: 59))
+            .id,
+        'blood_sugar_rise',
+      );
+      expect(
+        MetabolicStage.forElapsedDuration(const Duration(hours: 2)).id,
+        'blood_sugar_fall',
       );
       expect(
         MetabolicStage.forElapsedDuration(const Duration(hours: 3, minutes: 59))
             .id,
-        'fed',
+        'blood_sugar_fall',
       );
       expect(
         MetabolicStage.forElapsedDuration(const Duration(hours: 4)).id,

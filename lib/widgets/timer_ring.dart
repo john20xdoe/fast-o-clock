@@ -6,6 +6,7 @@ class TimerRing extends StatelessWidget {
   final double progress;
   final bool isActive;
   final bool isGoalMet;
+  final bool isCountdown;
   final Widget child;
   final double size;
   final double strokeWidth;
@@ -15,6 +16,7 @@ class TimerRing extends StatelessWidget {
     required this.progress,
     required this.isActive,
     required this.isGoalMet,
+    this.isCountdown = false,
     required this.child,
     this.size = 280,
     this.strokeWidth = 18,
@@ -35,6 +37,7 @@ class TimerRing extends StatelessWidget {
           progress: progress.clamp(0.0, 1.0),
           isActive: isActive,
           isGoalMet: isGoalMet,
+          isCountdown: isCountdown,
           trackColor: trackColor,
           strokeWidth: strokeWidth,
         ),
@@ -53,6 +56,7 @@ class _TimerRingPainter extends CustomPainter {
   final double progress;
   final bool isActive;
   final bool isGoalMet;
+  final bool isCountdown;
   final Color trackColor;
   final double strokeWidth;
 
@@ -60,6 +64,7 @@ class _TimerRingPainter extends CustomPainter {
     required this.progress,
     required this.isActive,
     required this.isGoalMet,
+    required this.isCountdown,
     required this.trackColor,
     required this.strokeWidth,
   });
@@ -78,10 +83,16 @@ class _TimerRingPainter extends CustomPainter {
 
     canvas.drawCircle(center, radius, trackPaint);
 
-    if (!isActive || progress <= 0.0) return;
+    if (!isActive) return;
 
-    final sweepAngle = 2 * math.pi * progress;
-    const startAngle = -math.pi / 2;
+    final displayedRatio = isCountdown ? (1.0 - progress) : progress;
+    if (displayedRatio <= 0.0 && !isGoalMet) return;
+
+    const topAngle = -math.pi / 2;
+    final startAngle =
+        isCountdown ? topAngle + (2 * math.pi * progress) : topAngle;
+    final sweepAngle =
+        2 * math.pi * (isGoalMet && isCountdown ? 0.0 : displayedRatio);
 
     final Paint arcPaint = Paint()
       ..style = PaintingStyle.stroke
@@ -90,16 +101,16 @@ class _TimerRingPainter extends CustomPainter {
 
     if (isGoalMet) {
       arcPaint.color = const Color(0xFF00C853);
+      if (isCountdown) return;
     } else {
-      arcPaint.shader = const SweepGradient(
+      final colors = isCountdown
+          ? const [Color(0xFFFF5252), Color(0xFFFF8A00), Color(0xFFFF5252)]
+          : const [Color(0xFFFF8A00), Color(0xFFFF5252), Color(0xFFFF8A00)];
+      arcPaint.shader = SweepGradient(
         startAngle: 0.0,
         endAngle: 2 * math.pi,
-        colors: [
-          Color(0xFFFF8A00),
-          Color(0xFFFF5252),
-          Color(0xFFFF8A00),
-        ],
-        transform: GradientRotation(-math.pi / 2),
+        colors: colors,
+        transform: const GradientRotation(-math.pi / 2),
       ).createShader(rect);
     }
 
@@ -111,6 +122,7 @@ class _TimerRingPainter extends CustomPainter {
     return oldDelegate.progress != progress ||
         oldDelegate.isActive != isActive ||
         oldDelegate.isGoalMet != isGoalMet ||
+        oldDelegate.isCountdown != isCountdown ||
         oldDelegate.trackColor != trackColor;
   }
 }

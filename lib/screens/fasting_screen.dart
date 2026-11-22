@@ -104,58 +104,16 @@ class FastingScreen extends StatelessWidget {
                   progress: progress,
                   isActive: isActive,
                   isGoalMet: isGoalMet,
+                  isCountdown: showRemaining,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (isActive) ...[
-                        MetabolicBadge(
-                          currentStage: controller.currentMetabolicStage,
-                          elapsed: elapsed,
-                        ),
-                        const SizedBox(height: 12),
-                        InkWell(
-                          onTap: () => controller.toggleShowRemainingTime(),
-                          borderRadius: BorderRadius.circular(8),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            child: Column(
-                              children: [
-                                Text(
-                                  showRemaining && !isGoalMet
-                                      ? 'Remaining (tap)'
-                                      : 'Elapsed (${(progress * 100).round()}%)',
-                                  style: theme.textTheme.labelMedium?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _formatHms(
-                                    showRemaining && !isGoalMet
-                                        ? remaining
-                                        : elapsed,
-                                  ),
-                                  style:
-                                      theme.textTheme.headlineMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    fontFeatures: const [
-                                      FontFeature.tabularFigures(),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
                         if (isGoalMet)
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
-                              vertical: 4,
+                              vertical: 3,
                             ),
                             decoration: BoxDecoration(
                               color: const Color(0xFF00C853)
@@ -173,10 +131,81 @@ class FastingScreen extends StatelessWidget {
                         else
                           Text(
                             'Goal: ${_formatHoursMinutes(Duration(minutes: active.targetDurationMin))}',
-                            style: theme.textTheme.bodySmall?.copyWith(
+                            style: theme.textTheme.labelMedium?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
+                        const SizedBox(height: 6),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _formatHms(showRemaining ? remaining : elapsed),
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              fontSize: 42,
+                              height: 1.1,
+                              fontWeight: FontWeight.w700,
+                              fontVariations: const [FontVariation.weight(700)],
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        InkWell(
+                          onTap: () => controller.toggleShowRemainingTime(),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Elapsed',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontWeight: !showRemaining
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
+                                    color: !showRemaining
+                                        ? const Color(0xFFFF8A00)
+                                        : theme.colorScheme.onSurfaceVariant
+                                            .withValues(alpha: 0.5),
+                                  ),
+                                ),
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 6),
+                                  child: Icon(
+                                    Icons.swap_horiz_rounded,
+                                    size: 14,
+                                    color: theme.colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.65),
+                                  ),
+                                ),
+                                Text(
+                                  'Remaining',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontWeight: showRemaining
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
+                                    color: showRemaining
+                                        ? const Color(0xFFFF5252)
+                                        : theme.colorScheme.onSurfaceVariant
+                                            .withValues(alpha: 0.5),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        MetabolicBadge(
+                          currentStage: controller.currentMetabolicStage,
+                          elapsed: elapsed,
+                        ),
                       ] else ...[
                         Icon(
                           Icons.hourglass_empty_rounded,

@@ -81,7 +81,7 @@ class _SplashScreenState extends State<SplashScreen>
                   const Text(
                     "Fast O'Clock",
                     style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
+                      fontFamily: 'Lexend',
                       color: Colors.white,
                       fontSize: 22,
                       fontWeight: FontWeight.w700,

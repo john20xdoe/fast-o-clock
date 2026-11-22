@@ -49,6 +49,6 @@ flutter:
     - family: Lexend
       fonts:
         - asset: assets/fonts/Lexend.ttf
-    - family: PlusJakartaSans
+    - family: IBMPlexSans
       fonts:
-        - asset: assets/fonts/PlusJakartaSans.ttf
+        - asset: assets/fonts/IBMPlexSans.ttf

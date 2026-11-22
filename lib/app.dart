@@ -21,17 +21,20 @@ class _FastOClockAppState extends State<FastOClockApp> {
   late bool _splashDone = !widget.showSplash;
 
   TextTheme _buildTextTheme(TextTheme base) {
-    final bodyTheme = base.apply(fontFamily: 'Lexend');
+    final bodyTheme = base.apply(fontFamily: 'IBMPlexSans');
     return bodyTheme.copyWith(
-      displayLarge: bodyTheme.displayLarge?.copyWith(fontFamily: 'PlusJakartaSans'),
-      displayMedium: bodyTheme.displayMedium?.copyWith(fontFamily: 'PlusJakartaSans'),
-      displaySmall: bodyTheme.displaySmall?.copyWith(fontFamily: 'PlusJakartaSans'),
-      headlineLarge: bodyTheme.headlineLarge?.copyWith(fontFamily: 'PlusJakartaSans'),
-      headlineMedium: bodyTheme.headlineMedium?.copyWith(fontFamily: 'PlusJakartaSans'),
-      headlineSmall: bodyTheme.headlineSmall?.copyWith(fontFamily: 'PlusJakartaSans'),
-      titleLarge: bodyTheme.titleLarge?.copyWith(fontFamily: 'PlusJakartaSans'),
-      titleMedium: bodyTheme.titleMedium?.copyWith(fontFamily: 'PlusJakartaSans'),
-      titleSmall: bodyTheme.titleSmall?.copyWith(fontFamily: 'PlusJakartaSans'),
+      displayLarge: bodyTheme.displayLarge?.copyWith(fontFamily: 'Lexend'),
+      displayMedium: bodyTheme.displayMedium?.copyWith(fontFamily: 'Lexend'),
+      displaySmall: bodyTheme.displaySmall?.copyWith(fontFamily: 'Lexend'),
+      headlineLarge: bodyTheme.headlineLarge?.copyWith(fontFamily: 'Lexend'),
+      headlineMedium: bodyTheme.headlineMedium?.copyWith(fontFamily: 'Lexend'),
+      headlineSmall: bodyTheme.headlineSmall?.copyWith(fontFamily: 'Lexend'),
+      titleLarge: bodyTheme.titleLarge?.copyWith(fontFamily: 'Lexend'),
+      titleMedium: bodyTheme.titleMedium?.copyWith(fontFamily: 'Lexend'),
+      titleSmall: bodyTheme.titleSmall?.copyWith(fontFamily: 'Lexend'),
+      labelLarge: bodyTheme.labelLarge?.copyWith(fontFamily: 'Lexend'),
+      labelMedium: bodyTheme.labelMedium?.copyWith(fontFamily: 'Lexend'),
+      labelSmall: bodyTheme.labelSmall?.copyWith(fontFamily: 'Lexend'),
     );
   }
 
@@ -44,7 +47,7 @@ class _FastOClockAppState extends State<FastOClockApp> {
     final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      fontFamily: 'Lexend',
+      fontFamily: 'IBMPlexSans',
       scaffoldBackgroundColor: const Color(0xFF121417),
       cardTheme: const CardThemeData(
         color: Color(0xFF1C1F24),
@@ -62,7 +65,7 @@ class _FastOClockAppState extends State<FastOClockApp> {
     final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      fontFamily: 'Lexend',
+      fontFamily: 'IBMPlexSans',
       cardTheme: const CardThemeData(
         elevation: 0,
       ),
