@@ -4,18 +4,9 @@ Simplified, ad-free, offline-first intermittent fasting tracker for personal and
 
 ---
 
-## Pre-Flight TODO
-
-- [ ] **Archive existing 3 prototype folders** into `_archive/` (or remove after confirming nothing needed):
-  - `fast-o-clock-app/` (Framework7 + Svelte + Capacitor)
-  - `fastoclock-flutter/` (old Flutter skeleton)
-  - `fast-oclock/` (SvelteKit + Carbon + Capacitor)
-
----
-
 ## Scavenged Identity & Concepts
 
-Preserved from the previous prototypes before cleanup:
+Preserved from the previous prototypes:
 
 - **App Identity:**
   - Name: `Fast O'Clock`
@@ -80,7 +71,7 @@ Detailed architecture and specifications live in `/design`:
 - [`design/UI_SPEC.md`](design/UI_SPEC.md) — Dark-first theme tokens, adaptive 3-tab shell, screen states, and `FastEditorSheet` validation UX.
 
 ```text
-/Volumes/Dev/lab/fast-o-clock/  # Root Flutter project (legacy prototypes in _archive/)
+/Volumes/Dev/lab/fast-o-clock/  # Root Flutter project
 ├── design/
 │   ├── ARCHITECTURE.md
 │   ├── DATA_MODEL.md
@@ -100,8 +91,7 @@ Detailed architecture and specifications live in `/design`:
 
 ## Implementation Phases
 
-1. **Phase 0 — Archive & Bootstrap**
-   - Move `fast-o-clock-app`, `fastoclock-flutter`, `fast-oclock` into `_archive/`.
+1. **Phase 0 — Bootstrap**
    - Run `flutter create` at repository root; add core dependencies; configure Android/iOS app name, bundle ID (`com.neurral.fast_oclock`), and notification permissions.
 2. **Phase 1 — Data & Controller**
    - Implement `FastRecord`, `FastProtocol`, `MetabolicStage`, `AppSettings`, `DatabaseService` (single SQLite table + overlap validation), `PreferencesService`, `BackupService`, and `FastingController` with unit tests.
