@@ -1,3 +1,4 @@
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -38,30 +39,42 @@ class _FastOClockAppState extends State<FastOClockApp> {
     );
   }
 
-  ThemeData _buildDarkTheme() {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFFFF8A00),
-      brightness: Brightness.dark,
-      surface: const Color(0xFF121417),
-    );
+  bool _isNonMonochrome(ColorScheme? scheme) {
+    if (scheme == null) return false;
+    return HSLColor.fromColor(scheme.primary).saturation >= 0.08;
+  }
+
+  ThemeData _buildDarkTheme([ColorScheme? dynamicScheme]) {
+    final useDynamic = _isNonMonochrome(dynamicScheme);
+    final scheme = useDynamic
+        ? dynamicScheme!
+        : ColorScheme.fromSeed(
+            seedColor: const Color(0xFFFF8A00),
+            brightness: Brightness.dark,
+            surface: const Color(0xFF121417),
+          );
     final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       fontFamily: 'IBMPlexSans',
-      scaffoldBackgroundColor: const Color(0xFF121417),
-      cardTheme: const CardThemeData(
-        color: Color(0xFF1C1F24),
+      scaffoldBackgroundColor:
+          useDynamic ? scheme.surface : const Color(0xFF121417),
+      cardTheme: CardThemeData(
+        color: useDynamic ? null : const Color(0xFF1C1F24),
         elevation: 0,
       ),
     );
     return base.copyWith(textTheme: _buildTextTheme(base.textTheme));
   }
 
-  ThemeData _buildLightTheme() {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFFFF8A00),
-      brightness: Brightness.light,
-    );
+  ThemeData _buildLightTheme([ColorScheme? dynamicScheme]) {
+    final useDynamic = _isNonMonochrome(dynamicScheme);
+    final scheme = useDynamic
+        ? dynamicScheme!
+        : ColorScheme.fromSeed(
+            seedColor: const Color(0xFFFF8A00),
+            brightness: Brightness.light,
+          );
     final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
@@ -91,13 +104,17 @@ class _FastOClockAppState extends State<FastOClockApp> {
       home = const AdaptiveShell();
     }
 
-    return MaterialApp(
-      title: "Fast O'Clock",
-      debugShowCheckedModeBanner: false,
-      theme: _buildLightTheme(),
-      darkTheme: _buildDarkTheme(),
-      themeMode: controller.settings.flutterThemeMode,
-      home: home,
+    return DynamicColorBuilder(
+      builder: (lightDynamic, darkDynamic) {
+        return MaterialApp(
+          title: "Fast O'Clock",
+          debugShowCheckedModeBanner: false,
+          theme: _buildLightTheme(lightDynamic),
+          darkTheme: _buildDarkTheme(darkDynamic),
+          themeMode: controller.settings.flutterThemeMode,
+          home: home,
+        );
+      },
     );
   }
 }
@@ -111,12 +128,20 @@ class AdaptiveShell extends StatefulWidget {
 
 class _AdaptiveShellState extends State<AdaptiveShell> {
   int _selectedIndex = 0;
+  String? _focusedRecordId;
 
-  static const List<Widget> _pages = [
-    FastingScreen(),
-    TimelineScreen(),
-    SettingsScreen(),
-  ];
+  void _openTimeline([String? recordId]) {
+    setState(() {
+      _focusedRecordId = recordId;
+      _selectedIndex = 1;
+    });
+  }
+
+  List<Widget> get _pages => [
+        FastingScreen(onOpenTimeline: _openTimeline),
+        TimelineScreen(focusedRecordId: _focusedRecordId),
+        const SettingsScreen(),
+      ];
 
   @override
   Widget build(BuildContext context) {

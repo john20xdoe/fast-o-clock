@@ -18,6 +18,7 @@ dependencies:
   intl: ^0.20.1
   share_plus: ^10.1.2
   file_picker: ^8.1.4
+  dynamic_color: 1.7.0
 
 dev_dependencies:
   flutter_test:

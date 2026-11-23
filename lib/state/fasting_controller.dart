@@ -134,6 +134,9 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
       customDurationMin: customDurationMin ?? _settings.customDurationMin,
     );
     await _preferencesService.saveSettings(_settings);
+    if (_settings.notifyGoalReached || _settings.notifyEatingWindow) {
+      await _notificationService.requestPermissions();
+    }
     notifyListeners();
   }
 
@@ -158,6 +161,7 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
         targetDurationMin: protocol.targetDurationMin,
       );
     } else {
+      await _scheduleEatingWindowIfNeeded();
       notifyListeners();
     }
   }
@@ -200,8 +204,28 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
 
     if (!enabled) {
       await _notificationService.cancelEatingWindowEnding();
+    } else if (_activeFast == null) {
+      await _scheduleEatingWindowIfNeeded();
     }
     notifyListeners();
+  }
+
+  Future<void> _scheduleEatingWindowIfNeeded() async {
+    if (!_settings.notifyEatingWindow || _activeFast != null) return;
+    final last = lastCompletedFast;
+    if (last?.endTimeMs == null) {
+      await _notificationService.cancelEatingWindowEnding();
+      return;
+    }
+    final protocol = selectedProtocol;
+    if (protocol.targetDurationMin >= 1440) {
+      await _notificationService.cancelEatingWindowEnding();
+      return;
+    }
+    await _notificationService.scheduleEatingWindowEnding(
+      fastEndTimeUtcMs: last!.endTimeMs!,
+      targetDurationMin: protocol.targetDurationMin,
+    );
   }
 
   // --- Fast Lifecycle Actions ---

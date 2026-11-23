@@ -13,7 +13,9 @@ class TimelineScreen extends StatelessWidget {
   static final DateFormat _shortTimeFmt = DateFormat('h:mm a');
   static final DateFormat _weekdayLetterFmt = DateFormat('E');
 
-  const TimelineScreen({super.key});
+  final String? focusedRecordId;
+
+  const TimelineScreen({super.key, this.focusedRecordId});
 
   String _formatDuration(Duration d) {
     final hours = d.inHours;

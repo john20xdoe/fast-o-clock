@@ -112,7 +112,8 @@ class NotificationService {
     if (targetDurationMin >= 1440) return; // Only for <24h protocols
 
     final eatingWindowMin = 1440 - targetDurationMin;
-    final reminderUtcMs = fastEndTimeUtcMs + eatingWindowMin * 60000;
+    final offsetMin = eatingWindowMin > 15 ? eatingWindowMin - 15 : eatingWindowMin;
+    final reminderUtcMs = fastEndTimeUtcMs + offsetMin * 60000;
     final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
     if (reminderUtcMs <= nowMs) return;
 
@@ -133,11 +134,15 @@ class NotificationService {
       macOS: DarwinNotificationDetails(),
     );
 
+    final body = eatingWindowMin > 15
+        ? '15 minutes left in your eating window. Ready to start your next fast?'
+        : 'Your eating window is ending. Ready to start your next fast?';
+
     try {
       await _plugin.zonedSchedule(
         eatingWindowNotificationId,
-        'Time to Start Your Next Fast',
-        'Your eating window has ended. Ready to start your next fast?',
+        'Eating Window Ending Soon',
+        body,
         scheduledDate,
         details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,

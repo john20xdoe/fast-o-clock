@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/fast_protocol.dart';
 import '../services/database_service.dart';
 import 'protocol_picker.dart';
+import 'tumbler_date_time_picker.dart';
 
 enum FastEditorMode {
   editActiveStart,
@@ -183,31 +184,15 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
         isStart ? _startTimeUtcMs : (_endTimeUtcMs ?? _nowUtc.millisecondsSinceEpoch);
     final currentLocal =
         DateTime.fromMillisecondsSinceEpoch(currentMs, isUtc: true).toLocal();
-    final nowLocal = _nowUtc.toLocal();
 
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: currentLocal.isAfter(nowLocal) ? nowLocal : currentLocal,
-      firstDate: DateTime(2020),
-      lastDate: nowLocal.add(const Duration(days: 1)),
+    final pickedLocal = await TumblerDateTimePicker.showModal(
+      context,
+      title: isStart ? 'Start Time' : 'End Time',
+      initialDateTimeLocal: currentLocal,
     );
-    if (pickedDate == null || !mounted) return;
+    if (pickedLocal == null || !mounted) return;
 
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(currentLocal),
-    );
-    if (pickedTime == null || !mounted) return;
-
-    final combinedLocal = DateTime(
-      pickedDate.year,
-      pickedDate.month,
-      pickedDate.day,
-      pickedTime.hour,
-      pickedTime.minute,
-    );
-    final newUtcMs = combinedLocal.toUtc().millisecondsSinceEpoch;
-
+    final newUtcMs = pickedLocal.toUtc().millisecondsSinceEpoch;
     setState(() {
       if (isStart) {
         _startTimeUtcMs = newUtcMs;
@@ -221,7 +206,7 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
   String get _title {
     switch (widget.mode) {
       case FastEditorMode.editActiveStart:
-        return 'Edit Active Fast';
+        return 'Edit Ongoing Fast';
       case FastEditorMode.completeActive:
         return 'Complete Fast';
       case FastEditorMode.editPast:
@@ -231,9 +216,22 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
     }
   }
 
+  void _requestDelete() {
+    Navigator.of(context).pop(
+      FastEditorResult(
+        protocolId: _protocolId,
+        targetDurationMin: _targetDurationMin,
+        startTimeUtcMs: _startTimeUtcMs,
+        endTimeUtcMs: _endTimeUtcMs,
+        deleteRequested: true,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isEditOngoing = widget.mode == FastEditorMode.editActiveStart;
     final protocol = FastProtocol.resolve(
       _protocolId,
       customDurationMin: _targetDurationMin,
@@ -266,19 +264,9 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (widget.mode != FastEditorMode.addPast)
+                  if (!isEditOngoing && widget.mode != FastEditorMode.addPast)
                     IconButton(
-                      onPressed: () {
-                        Navigator.of(context).pop(
-                          FastEditorResult(
-                            protocolId: _protocolId,
-                            targetDurationMin: _targetDurationMin,
-                            startTimeUtcMs: _startTimeUtcMs,
-                            endTimeUtcMs: _endTimeUtcMs,
-                            deleteRequested: true,
-                          ),
-                        );
-                      },
+                      onPressed: _requestDelete,
                       icon: Icon(
                         Icons.delete_outline_rounded,
                         color: theme.colorScheme.error,
@@ -290,44 +278,41 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                 ],
               ),
               const SizedBox(height: 12),
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: theme.colorScheme.outlineVariant),
-                ),
-                leading: const Icon(Icons.timer_outlined),
-                title: const Text('Protocol'),
-                subtitle: Text(protocol.label),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () async {
-                  final picked = await ProtocolPicker.show(
-                    context,
-                    selectedProtocolId: _protocolId,
-                    currentCustomDurationMin: _targetDurationMin,
-                  );
-                  if (picked != null) {
+              if (isEditOngoing) ...[
+                TumblerDateTimePicker(
+                  initialDateTimeLocal: startLocal,
+                  onChanged: (pickedLocal) {
                     setState(() {
-                      _protocolId = picked.protocolId;
-                      _targetDurationMin = picked.targetDurationMin;
+                      _startTimeUtcMs = pickedLocal.toUtc().millisecondsSinceEpoch;
                     });
-                  }
-                },
-              ),
-              const SizedBox(height: 10),
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: theme.colorScheme.outlineVariant),
+                    _runLiveValidation();
+                  },
                 ),
-                leading: const Icon(Icons.play_circle_outline_rounded),
-                title: const Text('Start Time'),
-                subtitle: Text(_dateTimeFmt.format(startLocal)),
-                trailing: const Icon(Icons.edit_calendar_rounded),
-                onTap: () => _pickDateTime(isStart: true),
-              ),
-              if (_showsEndTime && endLocal != null) ...[
+              ] else ...[
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: theme.colorScheme.outlineVariant),
+                  ),
+                  leading: const Icon(Icons.timer_outlined),
+                  title: const Text('Protocol'),
+                  subtitle: Text(protocol.label),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () async {
+                    final picked = await ProtocolPicker.show(
+                      context,
+                      selectedProtocolId: _protocolId,
+                      currentCustomDurationMin: _targetDurationMin,
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _protocolId = picked.protocolId;
+                        _targetDurationMin = picked.targetDurationMin;
+                      });
+                    }
+                  },
+                ),
                 const SizedBox(height: 10),
                 ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -335,12 +320,27 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                     borderRadius: BorderRadius.circular(12),
                     side: BorderSide(color: theme.colorScheme.outlineVariant),
                   ),
-                  leading: const Icon(Icons.stop_circle_outlined),
-                  title: const Text('End Time'),
-                  subtitle: Text(_dateTimeFmt.format(endLocal)),
+                  leading: const Icon(Icons.play_circle_outline_rounded),
+                  title: const Text('Start Time'),
+                  subtitle: Text(_dateTimeFmt.format(startLocal)),
                   trailing: const Icon(Icons.edit_calendar_rounded),
-                  onTap: () => _pickDateTime(isStart: false),
+                  onTap: () => _pickDateTime(isStart: true),
                 ),
+                if (_showsEndTime && endLocal != null) ...[
+                  const SizedBox(height: 10),
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: theme.colorScheme.outlineVariant),
+                    ),
+                    leading: const Icon(Icons.stop_circle_outlined),
+                    title: const Text('End Time'),
+                    subtitle: Text(_dateTimeFmt.format(endLocal)),
+                    trailing: const Icon(Icons.edit_calendar_rounded),
+                    onTap: () => _pickDateTime(isStart: false),
+                  ),
+                ],
               ],
               if (_showsMoodAndNote) ...[
                 const SizedBox(height: 16),
@@ -402,33 +402,72 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                 ),
               ],
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: FilledButton(
-                  onPressed: (_validationError != null || _isValidating)
-                      ? null
-                      : () {
-                          Navigator.of(context).pop(
-                            FastEditorResult(
-                              protocolId: _protocolId,
-                              targetDurationMin: _targetDurationMin,
-                              startTimeUtcMs: _startTimeUtcMs,
-                              endTimeUtcMs: _endTimeUtcMs,
-                              mood: _mood,
-                              note: _noteController.text.trim().isEmpty
-                                  ? null
-                                  : _noteController.text.trim(),
-                            ),
-                          );
-                        },
-                  child: Text(
-                    widget.mode == FastEditorMode.completeActive
-                        ? 'Save Completed Fast'
-                        : 'Save',
+              if (isEditOngoing)
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: _requestDelete,
+                      style: TextButton.styleFrom(
+                        foregroundColor: theme.colorScheme.error,
+                      ),
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      label: const Text('Delete'),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: SizedBox(
+                        height: 48,
+                        child: FilledButton(
+                          onPressed: (_validationError != null || _isValidating)
+                              ? null
+                              : () {
+                                  Navigator.of(context).pop(
+                                    FastEditorResult(
+                                      protocolId: _protocolId,
+                                      targetDurationMin: _targetDurationMin,
+                                      startTimeUtcMs: _startTimeUtcMs,
+                                      endTimeUtcMs: _endTimeUtcMs,
+                                      mood: _mood,
+                                      note: _noteController.text.trim().isEmpty
+                                          ? null
+                                          : _noteController.text.trim(),
+                                    ),
+                                  );
+                                },
+                          child: const Text('Save'),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: (_validationError != null || _isValidating)
+                        ? null
+                        : () {
+                            Navigator.of(context).pop(
+                              FastEditorResult(
+                                protocolId: _protocolId,
+                                targetDurationMin: _targetDurationMin,
+                                startTimeUtcMs: _startTimeUtcMs,
+                                endTimeUtcMs: _endTimeUtcMs,
+                                mood: _mood,
+                                note: _noteController.text.trim().isEmpty
+                                    ? null
+                                    : _noteController.text.trim(),
+                              ),
+                            );
+                          },
+                    child: Text(
+                      widget.mode == FastEditorMode.completeActive
+                          ? 'Save Completed Fast'
+                          : 'Save',
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
