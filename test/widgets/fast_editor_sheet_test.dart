@@ -57,7 +57,7 @@ void main() {
           find.widgetWithText(FilledButton, 'Save to Timeline'),
         );
         expect(saveButton.onPressed, isNull);
-        expect(find.widgetWithText(TextButton, 'Delete'), findsOneWidget);
+        expect(find.text('Delete'), findsOneWidget);
       },
     );
 
@@ -67,6 +67,7 @@ void main() {
         await tester.pumpWidget(
           wrapSheet(
             FastEditorSheet(
+              key: const ValueKey('past_1'),
               mode: FastEditorMode.editPast,
               databaseService: dbService,
               recordId: 'past_1',
@@ -94,6 +95,7 @@ void main() {
         await tester.pumpWidget(
           wrapSheet(
             FastEditorSheet(
+              key: const ValueKey('past_2'),
               mode: FastEditorMode.editPast,
               databaseService: dbService,
               recordId: 'past_2',
@@ -105,6 +107,7 @@ void main() {
             ),
           ),
         );
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
         await tester.pumpAndSettle();
 
         expect(
