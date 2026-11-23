@@ -34,6 +34,32 @@ class FastingScreen extends StatelessWidget {
     return '${hours}h ${mins}m';
   }
 
+  String _formatRelativePhrase(DateTime targetLocal, DateTime nowLocal) {
+    final diff = targetLocal.difference(nowLocal);
+    final isPast = diff.isNegative;
+    final abs = diff.abs();
+
+    if (abs.inSeconds < 60) {
+      return 'just now';
+    }
+    if (abs.inMinutes < 60) {
+      final m = abs.inMinutes;
+      return isPast ? '$m min ago' : 'in $m min';
+    }
+
+    final targetDay =
+        DateTime(targetLocal.year, targetLocal.month, targetLocal.day);
+    final nowDay = DateTime(nowLocal.year, nowLocal.month, nowLocal.day);
+    final dayDiff = targetDay.difference(nowDay).inDays;
+    final h = abs.inHours;
+
+    if (dayDiff == -1 && h >= 6) return 'yesterday';
+    if (dayDiff == 1 && h >= 6) return 'tomorrow';
+
+    final unit = h == 1 ? 'hr' : 'hrs';
+    return isPast ? '$h $unit ago' : 'in $h $unit';
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<FastingController>();
@@ -262,11 +288,27 @@ class FastingScreen extends StatelessWidget {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    'Started',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color:
-                                          theme.colorScheme.onSurfaceVariant,
+                                  Text.rich(
+                                    TextSpan(
+                                      style:
+                                          theme.textTheme.labelSmall?.copyWith(
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                      children: [
+                                        const TextSpan(
+                                          text: 'Started ',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        TextSpan(
+                                          text: _formatRelativePhrase(
+                                            active.startTimeLocal,
+                                            nowUtc.toLocal(),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                   const SizedBox(height: 2),
@@ -293,11 +335,27 @@ class FastingScreen extends StatelessWidget {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    'Target End',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color:
-                                          theme.colorScheme.onSurfaceVariant,
+                                  Text.rich(
+                                    TextSpan(
+                                      style:
+                                          theme.textTheme.labelSmall?.copyWith(
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                      children: [
+                                        const TextSpan(
+                                          text: 'Target End ',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        TextSpan(
+                                          text: _formatRelativePhrase(
+                                            active.targetEndTimeLocal,
+                                            nowUtc.toLocal(),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                   const SizedBox(height: 2),
