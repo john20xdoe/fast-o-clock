@@ -103,3 +103,56 @@ Detailed architecture and specifications live in `/design`:
    - Wire timeline list, edit/delete/manual-add with overlap checks, consecutive goal-met day streak & 7-day bar, and JSON export/import (Merge by ID + Replace All).
 6. **Phase 5 — Polish & Family Distribution**
    - App icon, splash screen, physical device testing, release APK (Android) / Xcode archive or TestFlight (iOS).
+
+---
+
+## UI/UX Testing Feedback (To Implement)
+
+### 1. Theming & Material You
+- **Default App Palette:** Preserve current color palette as the default app palette.
+- **Android Dynamic Color (Material You):** If user's Android device has a non-monochrome (non-black-and-white) Material You theme, apply it across the app; otherwise fall back to the default app palette.
+- **Splash Isolation:** Splash screen and splash icon must always use the default app palette (never override with user Material You theme).
+
+### 2. Splash Screen
+- **Brand Typography:** Make `"Fast O'Clock"` splash text bold to match the Fasting screen header style.
+
+### 3. Fasting Screen Layout (AlamUI DZ/IZ)
+- **`AppBrandTitle` Component:** Combine `"Fast O'Clock"` and `"time to fast"` into a single `AppBrandTitle` component anchored at the top of the screen, with `space-between` spacing below it.
+- **Timer Positioning & Bottom Action:** Center the circular timer on-screen offset ~25% above screen center, with the **Begin Fast** (formerly Start Fast) button anchored at the bottom (`space-between` before and after the circular timer).
+- **Preset Dropdown Placement:** Move the Preset dropdown directly above the **Begin Fast** button.
+
+### 4. Timer Ring — Ready / Eating Window State
+- **Last Fast Notification Panel:** Move `"Last ended XX ago"` out of the timer ring into a tappable notification panel between `AppBrandTitle` and the timer ring, revised to `"Last fast ended xx ago"`. Tapping jumps to the `Timeline` screen and autofocuses that fast record (autofocus can be stubbed if complex; tab/screen jump required).
+- **Eating Window Icon:** Replace the hourglass icon with a spoon-fork-plate icon at **2x** the current size.
+- **Smart Eating Window Label:** For protocols `< 24h` (up to OMAD, `eatingWindow = 24h - fastingDuration`), show `"Ready to Fast?"` when elapsed time since last fast ended enters the final hour or exceeds the eating window (`elapsed >= eatingWindow - 1h`, staying `"Ready to Fast?"` even if missed); otherwise show `"Your time to eat"`. Apply last-hour detection only to `< 24h` protocols.
+- **Goal Label Copy:** Change `"Target: XXh"` to `"Goal: XX hours"` (change `Target` to `Goal` and spell out the time unit).
+
+### 5. Settings Screen
+- **Fasting Patterns Header & Copy:** Retitle `"Choose Fasting Protocol"` to `"Fasting Patterns"` and add description below heading: `"Choose the most realistic and achievable option for you. Remember that the quality of food you take during your eating window is still of utmost importance."`
+- **Notifications (Eating Window Ending & Permissions):**
+  - Request OS notification permissions on first launch / onboarding completion (not only when toggling settings switches, since `notifyGoalReached` defaults to `true`).
+  - Trigger eating-window-ending notification **15 minutes before** the end of the eating window, and schedule it if enabled while already in an eating window.
+- **Data Backup Labels:** Remove `"JSON"` from option names → `"Export Backup to your Files"` and `"Import Backup from your Files"`.
+- **About / Copyright:** Remove package ID from copyright line; dynamically use current year (`YEAR. neurral and pinoy.dev`).
+
+### 6. Tumbler DateTime Picker (Replace Calendar & Clock Pickers)
+- **Remove Native Pickers:** Replace Material Calendar and Clock pickers across fast editing flows with a custom `TumblerDateTimePicker` widget.
+- **Date Tumbler (`YYYY | MM | DD [DAY]`):** Wheel/tumbler numeric pickers for `YYYY`, `MM`, `DD` (clamping valid days per month/leap year) + read-only `[DAY]` label in dimmer color auto-showing weekday (`MON`, `TUE`, etc.).
+- **Time Tumbler (`AM/PM | HH | MM`):** 12-hour format (`1–12` hours, `00–59` minutes) with `AM/PM` wheel that automatically flips whenever `HH` cycles across `11 ↔ 12`.
+
+### 7. Fasting Active State, Editor Sheet & CTAs
+- **Start / Target End Panels:** Make the entire panel/label tappable; remove `"Edit"` text label, retain pencil icon.
+- **Panel DateTime Format:** Display `HH:MM PM` on the left and `DATE` floated right (gap between time and date). Format `DATE` as `MMM DD • WKDAY` in smaller font size, all-caps.
+- **Target End Flag Icon:** Switch to green check-flag Material icon once the fast passes its goal duration.
+- **Edit Ongoing Fast Sheet:**
+  - Rename `"Edit Active Fast"` → `"Edit Ongoing Fast"`.
+  - Remove Protocol selector from this sheet (use Preset dropdown on Fasting screen instead).
+  - Immediately display `TumblerDateTimePicker` inline (defaulting to current fast timestamp / today).
+  - Bottom action row: red trash icon + `"Delete"` label on the left (sized to text/content width), paired inline with **Save** button (`Expanded` to fill remaining width).
+- **Primary Fasting CTAs:**
+  - Rename `"Start Fast"` → `"Begin Fast"`.
+  - Rename `"Complete Fast"` → `"Fast Complete?"`, remove checkbox icon, retain green coloring.
+
+### Deferred (Future)
+- **Day-Based / Recurring Fasting Patterns** (ADF, 1 day/week, 5-day) — deferred pending streak calculation analysis.
+- **Google Drive Backup** — deferred; focus on local file backup improvements first.
