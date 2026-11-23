@@ -51,11 +51,12 @@ lerna-debug.log*
 .yarn/install-state.gz
 
 # ==========================================
-# Svelte / SvelteKit / Vite
+# Svelte / SvelteKit / Vite / Capacitor
 # ==========================================
 .svelte-kit/
 dist/
 dist-ssr/
+www/
 *.local
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
@@ -88,6 +89,8 @@ app.*.map.json
 **/android/key.properties
 *.jks
 *.keystore
+*.apk
+*.aab
 
 # iOS / macOS (Flutter / Capacitor / Xcode)
 **/ios/Flutter/.last_build_id

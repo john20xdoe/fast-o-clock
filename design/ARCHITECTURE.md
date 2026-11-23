@@ -15,14 +15,10 @@ Offline-first, local-only intermittent fasting tracker built with Flutter.
 
 ## 2. Workspace & Directory Structure
 
-The Flutter project lives at the repository root (`/Volumes/Dev/lab/fast-o-clock/`). Legacy prototypes live in `_archive/` (excluded from analysis and builds).
+The Flutter project lives at the repository root (`/Volumes/Dev/lab/fast-o-clock/`).
 
 ```text
 /Volumes/Dev/lab/fast-o-clock/
-├── _archive/                         # Legacy prototypes (ignored by Flutter/Git)
-│   ├── fast-o-clock-app/
-│   ├── fastoclock-flutter/
-│   └── fast-oclock/
 ├── design/                           # Architecture & design specifications
 │   ├── ARCHITECTURE.md
 │   ├── DATA_MODEL.md
