@@ -109,29 +109,30 @@ Detailed architecture and specifications live in `/design`:
 ## UI/UX Testing Feedback (To Implement)
 
 ### 1. Theming & Material You
-- **Default App Palette:** Preserve current color palette as the default app palette.
-- **Android Dynamic Color (Material You):** If user's Android device has a non-monochrome (non-black-and-white) Material You theme, apply it across the app; otherwise fall back to the default app palette.
-- **Splash Isolation:** Splash screen and splash icon must always use the default app palette (never override with user Material You theme).
+- **Default App Palette:** Preserve current `#FF8A00` / `#121417` color palette as the default app palette.
+- **Android Dynamic Color (Material You):** Add `dynamic_color` to `pubspec.yaml` and wrap `MaterialApp` in `DynamicColorBuilder`. Apply the Android dynamic `ColorScheme` only when `lightDynamic != null` and `HSLColor.fromColor(scheme.primary).saturation >= 0.08` (non-monochrome); otherwise fall back to the default app palette.
+- **Splash Isolation:** Verify `SplashScreen` and `TimelapseIconPainter` stay locked to the hardcoded `#121417` default palette (already hardcoded; do not switch to theme colors).
 
 ### 2. Splash Screen
-- **Brand Typography:** Make `"Fast O'Clock"` splash text bold to match the Fasting screen header style.
+- **Brand Typography:** Bump `"Fast O'Clock"` splash text weight from `w700` to `w800` (`FontVariation.weight(800)`) to match the Fasting screen header style.
 
 ### 3. Fasting Screen Layout (AlamUI DZ/IZ)
+- **Viewport-Filling Scroll Container:** Replace the bare `SingleChildScrollView` with `LayoutBuilder` → `SingleChildScrollView` → `ConstrainedBox(minHeight: constraints.maxHeight)` → `IntrinsicHeight` so `MainAxisAlignment.spaceBetween` works on tall screens without breaking scroll on small viewports.
 - **`AppBrandTitle` Component:** Combine `"Fast O'Clock"` and `"time to fast"` into a single `AppBrandTitle` component anchored at the top of the screen, with `space-between` spacing below it.
 - **Timer Positioning & Bottom Action:** Center the circular timer on-screen offset ~25% above screen center, with the **Begin Fast** (formerly Start Fast) button anchored at the bottom (`space-between` before and after the circular timer).
 - **Preset Dropdown Placement:** Move the Preset dropdown directly above the **Begin Fast** button.
 
 ### 4. Timer Ring — Ready / Eating Window State
-- **Last Fast Notification Panel:** Move `"Last ended XX ago"` out of the timer ring into a tappable notification panel between `AppBrandTitle` and the timer ring, revised to `"Last fast ended xx ago"`. Tapping jumps to the `Timeline` screen and autofocuses that fast record (autofocus can be stubbed if complex; tab/screen jump required).
+- **Last Fast Notification Panel:** Move `"Last ended XX ago"` out of the timer ring into a tappable notification panel between `AppBrandTitle` and the timer ring, revised to `"Last fast ended xx ago"`. Pass an `onOpenTimeline([String? recordId])` callback from `AdaptiveShell` to `FastingScreen` so tapping jumps to the `Timeline` tab (record autofocus stubbed via optional `recordId` hook).
 - **Eating Window Icon:** Replace the hourglass icon with a spoon-fork-plate icon at **2x** the current size.
-- **Smart Eating Window Label:** For protocols `< 24h` (up to OMAD, `eatingWindow = 24h - fastingDuration`), show `"Ready to Fast?"` when elapsed time since last fast ended enters the final hour or exceeds the eating window (`elapsed >= eatingWindow - 1h`, staying `"Ready to Fast?"` even if missed); otherwise show `"Your time to eat"`. Apply last-hour detection only to `< 24h` protocols.
-- **Goal Label Copy:** Change `"Target: XXh"` to `"Goal: XX hours"` (change `Target` to `Goal` and spell out the time unit).
+- **Smart Eating Window Label:** For `< 24h` protocols (up to OMAD, `eatingWindow = 24h - fastingDuration`), show `"Ready to Fast?"` when `lastCompletedFast == null` (fresh install), when `targetDurationMin >= 1440`, or when elapsed time since last fast ended enters the final hour / exceeds the eating window (`elapsed >= eatingWindow - 1h`); otherwise show `"Your time to eat"`.
+- **Goal Label Copy:** Change `"Target: XXh"` to `"Goal: XX hours"` (handle singular/plural: `1 hour`, `N hours`, or `N hours M mins` for custom non-whole hours).
 
 ### 5. Settings Screen
 - **Fasting Patterns Header & Copy:** Retitle `"Choose Fasting Protocol"` to `"Fasting Patterns"` and add description below heading: `"Choose the most realistic and achievable option for you. Remember that the quality of food you take during your eating window is still of utmost importance."`
 - **Notifications (Eating Window Ending & Permissions):**
   - Request OS notification permissions on first launch / onboarding completion (not only when toggling settings switches, since `notifyGoalReached` defaults to `true`).
-  - Trigger eating-window-ending notification **15 minutes before** the end of the eating window, and schedule it if enabled while already in an eating window.
+  - Trigger eating-window-ending notification **15 minutes before** the end of the eating window (clamping to eating-window end if `eatingWindowMin <= 15` so custom short windows still fire), and reschedule when toggling `notifyEatingWindow` ON or changing `updateDefaultProtocol()` while `_activeFast == null`.
 - **Data Backup Labels:** Remove `"JSON"` from option names → `"Export Backup to your Files"` and `"Import Backup from your Files"`.
 - **About / Copyright:** Remove package ID from copyright line; dynamically use current year (`YEAR. neurral and pinoy.dev`).
 
@@ -144,10 +145,10 @@ Detailed architecture and specifications live in `/design`:
 - **Start / Target End Panels:** Make the entire panel/label tappable; remove `"Edit"` text label, retain pencil icon.
 - **Panel DateTime Format:** Display `HH:MM PM` on the left and `DATE` floated right (gap between time and date). Format `DATE` as `MMM DD • WKDAY` in smaller font size, all-caps.
 - **Target End Flag Icon:** Switch to green check-flag Material icon once the fast passes its goal duration.
-- **Edit Ongoing Fast Sheet:**
+- **Edit Ongoing Fast Sheet (`FastEditorMode.editActiveStart`):**
   - Rename `"Edit Active Fast"` → `"Edit Ongoing Fast"`.
-  - Remove Protocol selector from this sheet (use Preset dropdown on Fasting screen instead).
-  - Immediately display `TumblerDateTimePicker` inline (defaulting to current fast timestamp / today).
+  - Remove Protocol selector only in `editActiveStart` (use Preset dropdown on Fasting screen instead); keep Protocol selector + compact tappable Start/End rows opening `TumblerDateTimePicker` for `completeActive`, `editPast`, and `addPast` so Timeline editing and dual-timestamp sheets stay intact.
+  - Immediately display `TumblerDateTimePicker` inline in `editActiveStart` (defaulting to current fast timestamp / today).
   - Bottom action row: red trash icon + `"Delete"` label on the left (sized to text/content width), paired inline with **Save** button (`Expanded` to fill remaining width).
 - **Primary Fasting CTAs:**
   - Rename `"Start Fast"` → `"Begin Fast"`.
