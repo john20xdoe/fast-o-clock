@@ -80,5 +80,45 @@ void main() {
       expect(controller.totalCompletedFasts, 2);
       expect(controller.currentStreak, 2);
     });
+
+    test('computes streak with gaps, below-goal fasts, and 7-day summary',
+        () async {
+      // 3 days ago: goal met (16h)
+      final d3End =
+          fakeNowUtc.subtract(const Duration(days: 3)).millisecondsSinceEpoch;
+      await controller.addPastFast(
+        protocolId: '16_8',
+        targetDurationMin: 960,
+        startTimeUtcMs: d3End - 16 * 3600 * 1000,
+        endTimeUtcMs: d3End,
+      );
+
+      // Yesterday: completed below goal (10h of 16h)
+      final d1End =
+          fakeNowUtc.subtract(const Duration(days: 1)).millisecondsSinceEpoch;
+      await controller.addPastFast(
+        protocolId: '16_8',
+        targetDurationMin: 960,
+        startTimeUtcMs: d1End - 10 * 3600 * 1000,
+        endTimeUtcMs: d1End,
+      );
+
+      // Below-goal fast does not count toward streak
+      expect(controller.currentStreak, 0);
+
+      // Active fast today
+      await controller.startFast(
+        startTimeUtcMs:
+            fakeNowUtc.subtract(const Duration(hours: 2)).millisecondsSinceEpoch,
+      );
+
+      final summary = controller.lastSevenDaysSummary;
+      expect(summary.length, 7);
+      // Index 6 = today (active), 5 = yesterday (below goal), 4 = 2d ago (none), 3 = 3d ago (goal met)
+      expect(summary[6].status, DayFastStatus.active);
+      expect(summary[5].status, DayFastStatus.completedBelowGoal);
+      expect(summary[4].status, DayFastStatus.none);
+      expect(summary[3].status, DayFastStatus.goalMet);
+    });
   });
 }

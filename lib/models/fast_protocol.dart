@@ -11,13 +11,6 @@ class FastProtocol {
     required this.description,
   });
 
-  double get fastHours => targetDurationMin / 60.0;
-
-  int? get eatingWindowMinutes =>
-      targetDurationMin < 1440 ? 1440 - targetDurationMin : null;
-
-  bool get supportsEatingWindowAlert => targetDurationMin < 1440;
-
   static const List<FastProtocol> presets = [
     FastProtocol(
       id: '14_10',

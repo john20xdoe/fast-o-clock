@@ -106,5 +106,98 @@ void main() {
       final rec1 = await dbService.getRecordById('rec_1');
       expect(rec1?.note, 'Updated note');
     });
+
+    test('replaceAll replaces records and settings, and rolls back on error',
+        () async {
+      final existing = FastRecord(
+        id: 'old_1',
+        protocolId: '16_8',
+        startTimeMs: nowMs - 48 * 3600000,
+        endTimeMs: nowMs - 32 * 3600000,
+        targetDurationMin: 960,
+        createdAtMs: nowMs - 48 * 3600000,
+        updatedAtMs: 1000,
+      );
+      await dbService.insertRecord(existing, nowUtcMs: nowMs);
+
+      final badSettingsPayload = {
+        'schemaVersion': 1,
+        'appId': 'com.neurral.fast_oclock',
+        'exportedAtMs': nowMs,
+        'settings': {
+          'themeMode': 123, // invalid type
+        },
+        'records': [
+          {
+            'id': 'new_1',
+            'protocolId': '18_6',
+            'startTimeMs': nowMs - 20 * 3600000,
+            'endTimeMs': nowMs - 2 * 3600000,
+            'targetDurationMin': 1080,
+            'createdAtMs': nowMs - 20 * 3600000,
+            'updatedAtMs': 2000,
+          },
+        ],
+      };
+
+      await expectLater(
+        () => backupService.importBackupJson(
+          jsonEncode(badSettingsPayload),
+          mode: BackupImportMode.replaceAll,
+          nowUtcMs: nowMs,
+        ),
+        throwsA(isA<TypeError>()),
+      );
+      // Existing record preserved because settings failed before DB wipe
+      expect(await dbService.getRecordById('old_1'), isNotNull);
+
+      final validPayload = {
+        'schemaVersion': 1,
+        'appId': 'com.neurral.fast_oclock',
+        'exportedAtMs': nowMs,
+        'settings': {
+          'defaultProtocolId': '18_6',
+          'customDurationMin': 1080,
+          'themeMode': 'light',
+          'notifyGoalReached': false,
+          'notifyEatingWindow': true,
+          'showRemainingTime': true,
+        },
+        'records': [
+          {
+            'id': 'new_1',
+            'protocolId': '18_6',
+            'startTimeMs': nowMs - 20 * 3600000,
+            'endTimeMs': nowMs - 2 * 3600000,
+            'targetDurationMin': 1080,
+            'createdAtMs': nowMs - 20 * 3600000,
+            'updatedAtMs': 2000,
+          },
+        ],
+      };
+
+      final result = await backupService.importBackupJson(
+        jsonEncode(validPayload),
+        mode: BackupImportMode.replaceAll,
+        nowUtcMs: nowMs,
+      );
+      expect(result.importedCount, 1);
+      expect(await dbService.getRecordById('old_1'), isNull);
+      expect(await dbService.getRecordById('new_1'), isNotNull);
+      final restoredSettings = await prefsService.loadSettings();
+      expect(restoredSettings.themeMode, 'light');
+      expect(restoredSettings.defaultProtocolId, '18_6');
+    });
+
+    test('rejects unsupported schemaVersion', () async {
+      final badVersion = jsonEncode({
+        'schemaVersion': 99,
+        'records': [],
+      });
+      await expectLater(
+        () => backupService.importBackupJson(badVersion, nowUtcMs: nowMs),
+        throwsA(isA<FormatException>()),
+      );
+    });
   });
 }

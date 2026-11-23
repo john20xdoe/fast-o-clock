@@ -40,7 +40,7 @@ class FastingScreen extends StatelessWidget {
     final abs = diff.abs();
 
     if (abs.inSeconds < 60) {
-      return 'just now';
+      return isPast ? 'just now' : 'in < 1 min';
     }
     if (abs.inMinutes < 60) {
       final m = abs.inMinutes;

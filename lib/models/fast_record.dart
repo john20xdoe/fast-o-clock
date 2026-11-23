@@ -70,9 +70,6 @@ class FastRecord {
     return Duration(milliseconds: overMs > 0 ? overMs : 0);
   }
 
-  int elapsedMinutes([DateTime? nowUtc]) =>
-      elapsedDuration(nowUtc).inMinutes;
-
   double progress([DateTime? nowUtc]) {
     if (targetDurationMin <= 0) return 1.0;
     final ratio =
