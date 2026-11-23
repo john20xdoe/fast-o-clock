@@ -442,6 +442,36 @@ class FastingScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _confirmAndDiscardActive(
+    BuildContext context,
+    FastingController controller,
+    FastRecord active,
+  ) async {
+    if (!context.mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard Active Fast?'),
+        content: const Text(
+          'This in-progress fast will be discarded and not saved to your timeline.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await controller.deleteFastRecord(active.id);
+    }
+  }
+
   Future<void> _editActiveStart(
     BuildContext context,
     FastingController controller,
@@ -457,6 +487,11 @@ class FastingScreen extends StatelessWidget {
       initialStartTimeUtcMs: active.startTimeMs,
     );
     if (result == null) return;
+    if (result.deleteRequested) {
+      if (!context.mounted) return;
+      await _confirmAndDiscardActive(context, controller, active);
+      return;
+    }
     try {
       await controller.updateActiveFast(
         startTimeUtcMs: result.startTimeUtcMs,
@@ -477,8 +512,6 @@ class FastingScreen extends StatelessWidget {
     FastRecord active,
   ) async {
     final nowMs = controller.nowUtc.millisecondsSinceEpoch;
-    final defaultEndMs =
-        nowMs >= active.startTimeMs + 60000 ? nowMs : active.startTimeMs + 60000;
     final result = await FastEditorSheet.show(
       context,
       mode: FastEditorMode.completeActive,
@@ -487,11 +520,16 @@ class FastingScreen extends StatelessWidget {
       initialProtocolId: active.protocolId,
       initialTargetDurationMin: active.targetDurationMin,
       initialStartTimeUtcMs: active.startTimeMs,
-      initialEndTimeUtcMs: defaultEndMs,
+      initialEndTimeUtcMs: nowMs,
       initialMood: active.mood,
       initialNote: active.note,
     );
     if (result == null) return;
+    if (result.deleteRequested) {
+      if (!context.mounted) return;
+      await _confirmAndDiscardActive(context, controller, active);
+      return;
+    }
     try {
       await controller.endActiveFast(
         startTimeUtcMs: result.startTimeUtcMs,

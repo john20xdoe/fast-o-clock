@@ -402,9 +402,11 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
     _settings = await _preferencesService.loadSettings();
     await _reloadRecords();
     if (_activeFast != null) {
+      await _notificationService.cancelEatingWindowEnding();
       await _scheduleActiveGoalNotification(_activeFast!);
     } else {
       await _notificationService.cancelGoalReached();
+      await _notificationService.cancelEatingWindowEnding();
     }
     _syncTicker();
     notifyListeners();
@@ -437,7 +439,7 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
 
     final nowLocal = nowUtc.toLocal();
     final today = DateTime(nowLocal.year, nowLocal.month, nowLocal.day);
-    final yesterday = today.subtract(const Duration(days: 1));
+    final yesterday = DateTime(today.year, today.month, today.day - 1);
 
     DateTime? cursor;
     if (qualifyingDays.contains(today)) {
@@ -451,7 +453,7 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
     int streak = 0;
     while (qualifyingDays.contains(cursor)) {
       streak++;
-      cursor = cursor!.subtract(const Duration(days: 1));
+      cursor = DateTime(cursor!.year, cursor.month, cursor.day - 1);
     }
     return streak;
   }
@@ -483,8 +485,7 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
 
     final summaries = <DayFastSummary>[];
     for (int i = 6; i >= 0; i--) {
-      final date = today.subtract(Duration(days: i));
-      final normalized = DateTime(date.year, date.month, date.day);
+      final normalized = DateTime(today.year, today.month, today.day - i);
       summaries.add(
         DayFastSummary(
           localDate: normalized,

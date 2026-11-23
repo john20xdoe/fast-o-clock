@@ -82,6 +82,16 @@ class BackupService {
     int skipped = 0;
 
     if (mode == BackupImportMode.replaceAll) {
+      AppSettings? restoredSettings;
+      final rawSettings = decoded['settings'];
+      if (rawSettings is Map) {
+        final currentSettings = await _preferencesService.loadSettings();
+        restoredSettings = AppSettings.fromBackupJson(
+          Map<String, dynamic>.from(rawSettings),
+          isOnboarded: currentSettings.isOnboarded,
+        );
+      }
+
       await db.transaction((txn) async {
         await txn.delete('fast_records');
         for (final record in incomingRecords) {
@@ -95,13 +105,7 @@ class BackupService {
         }
       });
 
-      final rawSettings = decoded['settings'];
-      if (rawSettings is Map) {
-        final currentSettings = await _preferencesService.loadSettings();
-        final restoredSettings = AppSettings.fromBackupJson(
-          Map<String, dynamic>.from(rawSettings),
-          isOnboarded: currentSettings.isOnboarded,
-        );
+      if (restoredSettings != null) {
         await _preferencesService.saveSettings(restoredSettings);
       }
     } else {

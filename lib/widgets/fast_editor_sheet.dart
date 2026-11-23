@@ -266,7 +266,7 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (widget.mode == FastEditorMode.editPast)
+                  if (widget.mode != FastEditorMode.addPast)
                     IconButton(
                       onPressed: () {
                         Navigator.of(context).pop(
@@ -283,7 +283,9 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                         Icons.delete_outline_rounded,
                         color: theme.colorScheme.error,
                       ),
-                      tooltip: 'Delete Fast',
+                      tooltip: widget.mode == FastEditorMode.editPast
+                          ? 'Delete Fast'
+                          : 'Discard Fast',
                     ),
                 ],
               ),
