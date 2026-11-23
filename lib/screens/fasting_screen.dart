@@ -116,7 +116,7 @@ class FastingScreen extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final availableWidth = math.min(constraints.maxWidth, 560.0);
-          final ringSize = (availableWidth * 0.85).clamp(240.0, 400.0);
+          final ringSize = (availableWidth * 0.75).clamp(220.0, 360.0);
 
           return SingleChildScrollView(
             child: ConstrainedBox(
@@ -182,7 +182,7 @@ class FastingScreen extends StatelessWidget {
                             ],
                           ),
 
-                          // Middle: Circular Timer Ring (85% width, offset ~25% above center when idle)
+                          // Middle: Circular Timer Ring (75% width, offset ~25% above center when idle)
                           Padding(
                             padding: EdgeInsets.only(
                               bottom: isActive ? 0 : constraints.maxHeight * 0.08,
@@ -193,130 +193,205 @@ class FastingScreen extends StatelessWidget {
                               isActive: isActive,
                               isGoalMet: isGoalMet,
                               isCountdown: showRemaining,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (isActive) ...[
-                                    if (isGoalMet)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 3,
+                              child: isActive
+                                  ? SizedBox.expand(
+                                      child: Stack(
+                                        children: [
+                                          Center(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (isGoalMet)
+                                                  Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 3,
+                                                    ),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(
+                                                              0xFF00C853)
+                                                          .withValues(
+                                                              alpha: 0.18),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              12),
+                                                    ),
+                                                    child: Text(
+                                                      '+${_formatHoursMinutes(overGoal)} past goal',
+                                                      style: theme
+                                                          .textTheme.labelSmall
+                                                          ?.copyWith(
+                                                        color: const Color(
+                                                            0xFF00C853),
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  )
+                                                else
+                                                  Text(
+                                                    'Goal: ${_formatGoalDuration(Duration(minutes: active.targetDurationMin))}',
+                                                    style: theme
+                                                        .textTheme.labelMedium
+                                                        ?.copyWith(
+                                                      color: theme.colorScheme
+                                                          .onSurfaceVariant,
+                                                    ),
+                                                  ),
+                                                const SizedBox(height: 6),
+                                                FittedBox(
+                                                  fit: BoxFit.scaleDown,
+                                                  child: Text(
+                                                    _formatHms(showRemaining
+                                                        ? remaining
+                                                        : elapsed),
+                                                    style: theme.textTheme
+                                                        .headlineMedium
+                                                        ?.copyWith(
+                                                      fontSize: 42,
+                                                      height: 1.1,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      fontVariations: const [
+                                                        FontVariation.weight(
+                                                            700),
+                                                      ],
+                                                      fontFeatures: const [
+                                                        FontFeature
+                                                            .tabularFigures(),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                InkWell(
+                                                  onTap: () => controller
+                                                      .toggleShowRemainingTime(),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  child: Padding(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4,
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        Text(
+                                                          'Elapsed',
+                                                          style: theme.textTheme
+                                                              .labelSmall
+                                                              ?.copyWith(
+                                                            fontWeight:
+                                                                !showRemaining
+                                                                    ? FontWeight
+                                                                        .w700
+                                                                    : FontWeight
+                                                                        .w400,
+                                                            color: !showRemaining
+                                                                ? const Color(
+                                                                    0xFFFF8A00)
+                                                                : theme
+                                                                    .colorScheme
+                                                                    .onSurfaceVariant
+                                                                    .withValues(
+                                                                        alpha:
+                                                                            0.5),
+                                                          ),
+                                                        ),
+                                                        Padding(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                            horizontal: 6,
+                                                          ),
+                                                          child: Icon(
+                                                            Icons
+                                                                .swap_horiz_rounded,
+                                                            size: 14,
+                                                            color: theme
+                                                                .colorScheme
+                                                                .onSurfaceVariant
+                                                                .withValues(
+                                                                    alpha:
+                                                                        0.65),
+                                                          ),
+                                                        ),
+                                                        Text(
+                                                          'Remaining',
+                                                          style: theme.textTheme
+                                                              .labelSmall
+                                                              ?.copyWith(
+                                                            fontWeight:
+                                                                showRemaining
+                                                                    ? FontWeight
+                                                                        .w700
+                                                                    : FontWeight
+                                                                        .w400,
+                                                            color: showRemaining
+                                                                ? const Color(
+                                                                    0xFFFF5252)
+                                                                : theme
+                                                                    .colorScheme
+                                                                    .onSurfaceVariant
+                                                                    .withValues(
+                                                                        alpha:
+                                                                            0.5),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Positioned(
+                                            bottom: 12,
+                                            left: 28,
+                                            right: 28,
+                                            child: Center(
+                                              child: MetabolicBadge(
+                                                currentStage: controller
+                                                    .currentMetabolicStage,
+                                                elapsed: elapsed,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.restaurant_rounded,
+                                          size: 72,
+                                          color: theme.colorScheme.primary,
                                         ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF00C853)
-                                              .withValues(alpha: 0.18),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          '+${_formatHoursMinutes(overGoal)} past goal',
-                                          style: theme.textTheme.labelSmall?.copyWith(
-                                            color: const Color(0xFF00C853),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          _readyToFastLabel(
+                                              controller, protocol, nowUtc),
+                                          style: theme.textTheme.titleMedium
+                                              ?.copyWith(
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
-                                      )
-                                    else
-                                      Text(
-                                        'Goal: ${_formatGoalDuration(Duration(minutes: active.targetDurationMin))}',
-                                        style: theme.textTheme.labelMedium?.copyWith(
-                                          color: theme.colorScheme.onSurfaceVariant,
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Goal: ${_formatGoalDuration(Duration(minutes: protocol.targetDurationMin))}',
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                            color: theme
+                                                .colorScheme.onSurfaceVariant,
+                                          ),
                                         ),
-                                      ),
-                                    const SizedBox(height: 6),
-                                    FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Text(
-                                        _formatHms(showRemaining ? remaining : elapsed),
-                                        style: theme.textTheme.headlineMedium?.copyWith(
-                                          fontSize: 42,
-                                          height: 1.1,
-                                          fontWeight: FontWeight.w700,
-                                          fontVariations: const [FontVariation.weight(700)],
-                                          fontFeatures: const [
-                                            FontFeature.tabularFigures(),
-                                          ],
-                                        ),
-                                      ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 6),
-                                    InkWell(
-                                      onTap: () => controller.toggleShowRemainingTime(),
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              'Elapsed',
-                                              style: theme.textTheme.labelSmall?.copyWith(
-                                                fontWeight: !showRemaining
-                                                    ? FontWeight.w700
-                                                    : FontWeight.w400,
-                                                color: !showRemaining
-                                                    ? const Color(0xFFFF8A00)
-                                                    : theme.colorScheme.onSurfaceVariant
-                                                        .withValues(alpha: 0.5),
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(horizontal: 6),
-                                              child: Icon(
-                                                Icons.swap_horiz_rounded,
-                                                size: 14,
-                                                color: theme.colorScheme.onSurfaceVariant
-                                                    .withValues(alpha: 0.65),
-                                              ),
-                                            ),
-                                            Text(
-                                              'Remaining',
-                                              style: theme.textTheme.labelSmall?.copyWith(
-                                                fontWeight: showRemaining
-                                                    ? FontWeight.w700
-                                                    : FontWeight.w400,
-                                                color: showRemaining
-                                                    ? const Color(0xFFFF5252)
-                                                    : theme.colorScheme.onSurfaceVariant
-                                                        .withValues(alpha: 0.5),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    MetabolicBadge(
-                                      currentStage: controller.currentMetabolicStage,
-                                      elapsed: elapsed,
-                                    ),
-                                  ] else ...[
-                                    Icon(
-                                      Icons.restaurant_rounded,
-                                      size: 72,
-                                      color: theme.colorScheme.primary,
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      _readyToFastLabel(controller, protocol, nowUtc),
-                                      style: theme.textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Goal: ${_formatGoalDuration(Duration(minutes: protocol.targetDurationMin))}',
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        color: theme.colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
                             ),
                           ),
 

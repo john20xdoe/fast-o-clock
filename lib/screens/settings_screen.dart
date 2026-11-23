@@ -46,38 +46,24 @@ class SettingsScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.timer_outlined),
-                      title: const Text('Fasting Patterns'),
-                      subtitle: Text(defaultProtocol.label),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () async {
-                        final picked = await ProtocolPicker.show(
-                          context,
-                          selectedProtocolId: settings.defaultProtocolId,
-                          currentCustomDurationMin: settings.customDurationMin,
-                        );
-                        if (picked != null) {
-                          await controller.updateDefaultProtocol(
-                            picked.protocolId,
-                            customDurationMin: picked.targetDurationMin,
-                          );
-                        }
-                      },
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                      child: Text(
-                        'Choose the most realistic and achievable option for you. Remember that the quality of food you take during your eating window is still of utmost importance.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
+                child: ListTile(
+                  leading: const Icon(Icons.timer_outlined),
+                  title: const Text('Fasting Patterns'),
+                  subtitle: Text(defaultProtocol.label),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () async {
+                    final picked = await ProtocolPicker.show(
+                      context,
+                      selectedProtocolId: settings.defaultProtocolId,
+                      currentCustomDurationMin: settings.customDurationMin,
+                    );
+                    if (picked != null) {
+                      await controller.updateDefaultProtocol(
+                        picked.protocolId,
+                        customDurationMin: picked.targetDurationMin,
+                      );
+                    }
+                  },
                 ),
               ),
               const SizedBox(height: 16),

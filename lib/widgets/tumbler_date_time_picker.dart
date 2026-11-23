@@ -109,7 +109,8 @@ class _TumblerDateTimePickerState extends State<TumblerDateTimePicker> {
   }
 
   DateTime get _currentDateTime {
-    final hour24 = _hour12 == 12 ? (_isPm ? 12 : 0) : (_isPm ? _hour12 + 12 : _hour12);
+    final hour24 =
+        _hour12 == 12 ? (_isPm ? 12 : 0) : (_isPm ? _hour12 + 12 : _hour12);
     return DateTime(_year, _month, _day, hour24, _minute);
   }
 
@@ -150,7 +151,8 @@ class _TumblerDateTimePickerState extends State<TumblerDateTimePicker> {
           height: 136,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            color: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Stack(
@@ -209,7 +211,8 @@ class _TumblerDateTimePickerState extends State<TumblerDateTimePicker> {
                       labelBuilder: (i) => (i + 1).toString().padLeft(2, '0'),
                       onChanged: (i) {
                         setState(() {
-                          _day = (i % daysInMonth + daysInMonth) % daysInMonth + 1;
+                          _day = (i % daysInMonth + daysInMonth) % daysInMonth +
+                              1;
                         });
                         _emitChanged();
                       },
@@ -253,7 +256,8 @@ class _TumblerDateTimePickerState extends State<TumblerDateTimePicker> {
           height: 136,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            color: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Stack(
@@ -298,7 +302,7 @@ class _TumblerDateTimePickerState extends State<TumblerDateTimePicker> {
                         final nextHour = (i % 12 + 12) % 12 + 1;
                         final crossedBoundary =
                             (_hour12 == 11 && nextHour == 12) ||
-                            (_hour12 == 12 && nextHour == 11);
+                                (_hour12 == 12 && nextHour == 11);
                         setState(() {
                           _hour12 = nextHour;
                           if (crossedBoundary) {

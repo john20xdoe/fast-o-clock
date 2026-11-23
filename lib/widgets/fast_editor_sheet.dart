@@ -97,6 +97,8 @@ class FastEditorSheet extends StatefulWidget {
 
 class _FastEditorSheetState extends State<FastEditorSheet> {
   static final DateFormat _dateTimeFmt = DateFormat('EEE, MMM d • h:mm a');
+  static final DateFormat _panelTimeFmt = DateFormat('h:mm a');
+  static final DateFormat _panelDateFmt = DateFormat('MMM d • EEE');
 
   late String _protocolId;
   late int _targetDurationMin;
@@ -208,7 +210,7 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
       case FastEditorMode.editActiveStart:
         return 'Edit Ongoing Fast';
       case FastEditorMode.completeActive:
-        return 'Complete Fast';
+        return 'Break your fast:';
       case FastEditorMode.editPast:
         return 'Edit Fast Record';
       case FastEditorMode.addPast:
@@ -228,10 +230,109 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
     );
   }
 
+  Widget _buildTimePanel(
+    ThemeData theme, {
+    required String label,
+    required DateTime localTime,
+    VoidCallback? onTap,
+  }) {
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _panelTimeFmt.format(localTime),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      _panelDateFmt.format(localTime).toUpperCase(),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (onTap != null) ...[
+            const SizedBox(width: 10),
+            Icon(
+              Icons.edit_calendar_rounded,
+              size: 18,
+              color: theme.colorScheme.primary,
+            ),
+          ],
+        ],
+      ),
+    );
+
+    if (onTap == null) return content;
+    return InkWell(onTap: onTap, child: content);
+  }
+
+  Widget _buildValidationSlot(ThemeData theme) {
+    return SizedBox(
+      height: 54,
+      width: double.infinity,
+      child: _validationError != null
+          ? Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.error_outline_rounded,
+                    color: theme.colorScheme.onErrorContainer,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _validationError!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : const SizedBox.shrink(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isEditOngoing = widget.mode == FastEditorMode.editActiveStart;
+    final isCompleteActive = widget.mode == FastEditorMode.completeActive;
+    final hasBottomDelete = isEditOngoing || isCompleteActive;
     final protocol = FastProtocol.resolve(
       _protocolId,
       customDurationMin: _targetDurationMin,
@@ -243,6 +344,9 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
         ? DateTime.fromMillisecondsSinceEpoch(_endTimeUtcMs!, isUtc: true)
             .toLocal()
         : null;
+    final actualDurationMs =
+        (_endTimeUtcMs ?? _nowUtc.millisecondsSinceEpoch) - _startTimeUtcMs;
+    final metGoal = actualDurationMs >= _targetDurationMin * 60000;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -264,16 +368,14 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (!isEditOngoing && widget.mode != FastEditorMode.addPast)
+                  if (!hasBottomDelete && widget.mode != FastEditorMode.addPast)
                     IconButton(
                       onPressed: _requestDelete,
                       icon: Icon(
                         Icons.delete_outline_rounded,
                         color: theme.colorScheme.error,
                       ),
-                      tooltip: widget.mode == FastEditorMode.editPast
-                          ? 'Delete Fast'
-                          : 'Discard Fast',
+                      tooltip: 'Delete Fast',
                     ),
                 ],
               ),
@@ -288,6 +390,44 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                     _runLiveValidation();
                   },
                 ),
+              ] else if (isCompleteActive) ...[
+                Chip(
+                  avatar: const Icon(Icons.tune_rounded, size: 18),
+                  label: Text('${protocol.label} Preset'),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: theme.colorScheme.outlineVariant
+                          .withValues(alpha: 0.5),
+                    ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      _buildTimePanel(
+                        theme,
+                        label: 'Start Time',
+                        localTime: startLocal,
+                      ),
+                      if (endLocal != null) ...[
+                        const Divider(height: 1),
+                        _buildTimePanel(
+                          theme,
+                          label: 'End Time',
+                          localTime: endLocal,
+                          onTap: () => _pickDateTime(isStart: false),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildValidationSlot(theme),
               ] else ...[
                 ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -343,7 +483,21 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                 ],
               ],
               if (_showsMoodAndNote) ...[
-                const SizedBox(height: 16),
+                SizedBox(height: isCompleteActive ? 16 : 14),
+                if (isCompleteActive) ...[
+                  Text(
+                    metGoal
+                        ? 'You met your goal!'
+                        : "You're ending early, but you can still try next time?",
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: metGoal
+                          ? const Color(0xFF00C853)
+                          : const Color(0xFFFF8A00),
+                      fontWeight: metGoal ? FontWeight.bold : FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 Text(
                   'How did you feel?',
                   style: theme.textTheme.labelLarge,
@@ -358,11 +512,11 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                     _buildMoodChip('hard', 'Hard'),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 TextField(
                   controller: _noteController,
                   maxLength: 280,
-                  maxLines: 2,
+                  maxLines: 1,
                   decoration: InputDecoration(
                     labelText: 'Optional Note',
                     hintText: 'Add a quick note about this fast...',
@@ -372,37 +526,12 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                   ),
                 ),
               ],
-              if (_validationError != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.errorContainer,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.error_outline_rounded,
-                        color: theme.colorScheme.onErrorContainer,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _validationError!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onErrorContainer,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              if (!isCompleteActive) ...[
+                const SizedBox(height: 8),
+                _buildValidationSlot(theme),
               ],
-              const SizedBox(height: 16),
-              if (isEditOngoing)
+              const SizedBox(height: 10),
+              if (hasBottomDelete)
                 Row(
                   children: [
                     TextButton.icon(
@@ -434,7 +563,9 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                                     ),
                                   );
                                 },
-                          child: const Text('Save'),
+                          child: Text(
+                            isCompleteActive ? 'Save to Timeline' : 'Save',
+                          ),
                         ),
                       ),
                     ),
@@ -461,11 +592,7 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                               ),
                             );
                           },
-                    child: Text(
-                      widget.mode == FastEditorMode.completeActive
-                          ? 'Save Completed Fast'
-                          : 'Save',
-                    ),
+                    child: const Text('Save'),
                   ),
                 ),
             ],

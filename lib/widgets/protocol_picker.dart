@@ -65,9 +65,16 @@ class _ProtocolPickerState extends State<ProtocolPicker> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Choose Fasting Protocol',
+                'Choose Fasting Pattern',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Choose the most realistic and achievable option for you. Remember that the quality of food you take during your eating window is still of utmost importance.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 12),
