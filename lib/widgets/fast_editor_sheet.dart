@@ -149,8 +149,9 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
     } else if (_showsEndTime && _endTimeUtcMs != null) {
       if (_endTimeUtcMs! > nowMs) {
         error = 'End time cannot be in the future.';
-      } else if (_endTimeUtcMs! < _startTimeUtcMs + 60000) {
-        error = 'End time must be at least 1 minute after start time.';
+      } else if (_endTimeUtcMs! <
+          _startTimeUtcMs + DatabaseService.minCompletedFastDurationMs) {
+        error = DatabaseService.minCompletedFastDurationError;
       }
     }
 
@@ -272,14 +273,19 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
               ],
             ),
           ),
-          if (onTap != null) ...[
-            const SizedBox(width: 10),
-            Icon(
-              Icons.edit_calendar_rounded,
-              size: 18,
-              color: theme.colorScheme.primary,
-            ),
-          ],
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 24,
+            child: onTap != null
+                ? Center(
+                    child: Icon(
+                      Icons.edit_calendar_rounded,
+                      size: 18,
+                      color: theme.colorScheme.primary,
+                    ),
+                  )
+                : null,
+          ),
         ],
       ),
     );
@@ -289,41 +295,43 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
   }
 
   Widget _buildValidationSlot(ThemeData theme) {
-    return SizedBox(
-      height: 54,
-      width: double.infinity,
-      child: _validationError != null
-          ? Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.errorContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.error_outline_rounded,
-                    color: theme.colorScheme.onErrorContainer,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _validationError!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onErrorContainer,
-                        fontWeight: FontWeight.w600,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 54),
+      child: SizedBox(
+        width: double.infinity,
+        child: _validationError != null
+            ? Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline_rounded,
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _validationError!,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onErrorContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            )
-          : const SizedBox.shrink(),
+                  ],
+                ),
+              )
+            : const SizedBox.shrink(),
+      ),
     );
   }
 
@@ -482,13 +490,15 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                   ),
                 ],
               ],
-              if (_showsMoodAndNote) ...[
+              if (_showsMoodAndNote &&
+                  _validationError !=
+                      DatabaseService.minCompletedFastDurationError) ...[
                 SizedBox(height: isCompleteActive ? 16 : 14),
                 if (isCompleteActive) ...[
                   Text(
                     metGoal
                         ? 'You met your goal!'
-                        : "You're ending early, but you can still try next time?",
+                        : "You're ending early, but you can still try next time!",
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: metGoal
                           ? const Color(0xFF00C853)
@@ -499,17 +509,17 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                   const SizedBox(height: 10),
                 ],
                 Text(
-                  'How did you feel?',
+                  'How did this fasting feel?',
                   style: theme.textTheme.labelLarge,
                 ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   children: [
-                    _buildMoodChip('great', 'Great'),
-                    _buildMoodChip('good', 'Good'),
+                    _buildMoodChip('great', 'Great!'),
                     _buildMoodChip('okay', 'Okay'),
-                    _buildMoodChip('hard', 'Hard'),
+                    _buildMoodChip('challenging', 'Challenging'),
+                    _buildMoodChip('bad', 'Bad'),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -519,7 +529,11 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                   maxLines: 1,
                   decoration: InputDecoration(
                     labelText: 'Optional Note',
-                    hintText: 'Add a quick note about this fast...',
+                    hintText: 'Optional notes to yourself...',
+                    hintStyle: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.55),
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),

@@ -133,54 +133,8 @@ class FastingScreen extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // Top: Brand Title + Last Fast Notification Panel
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const AppBrandTitle(),
-                              if (!isActive && lastFast?.endTimeMs != null) ...[
-                                const SizedBox(height: 12),
-                                InkWell(
-                                  onTap: () => onOpenTimeline?.call(lastFast.id),
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.surfaceContainerHighest
-                                          .withValues(alpha: 0.45),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.history_rounded,
-                                          size: 16,
-                                          color: theme.colorScheme.primary,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Last fast ended ${_formatHoursMinutes(nowUtc.difference(DateTime.fromMillisecondsSinceEpoch(lastFast!.endTimeMs!, isUtc: true)))} ago',
-                                          style: theme.textTheme.labelMedium?.copyWith(
-                                            color: theme.colorScheme.onSurfaceVariant,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Icon(
-                                          Icons.chevron_right_rounded,
-                                          size: 16,
-                                          color: theme.colorScheme.onSurfaceVariant,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                          // Top: Brand Title
+                          const AppBrandTitle(),
 
                           // Middle: Circular Timer Ring (75% width, offset ~25% above center when idle)
                           Padding(
@@ -477,10 +431,15 @@ class FastingScreen extends StatelessWidget {
                                                 ),
                                               ),
                                               const SizedBox(width: 12),
-                                              Icon(
-                                                Icons.edit_rounded,
-                                                size: 16,
-                                                color: theme.colorScheme.primary,
+                                              SizedBox(
+                                                width: 24,
+                                                child: Center(
+                                                  child: Icon(
+                                                    Icons.edit_rounded,
+                                                    size: 16,
+                                                    color: theme.colorScheme.primary,
+                                                  ),
+                                                ),
                                               ),
                                             ],
                                           ),
@@ -557,19 +516,64 @@ class FastingScreen extends StatelessWidget {
                                                 ),
                                               ),
                                               const SizedBox(width: 12),
-                                              Icon(
-                                                isGoalMet
-                                                    ? Icons.flag_rounded
-                                                    : Icons.flag_outlined,
-                                                color: isGoalMet
-                                                    ? const Color(0xFF00C853)
-                                                    : theme.colorScheme.onSurfaceVariant,
+                                              SizedBox(
+                                                width: 24,
+                                                child: Center(
+                                                  child: Icon(
+                                                    isGoalMet
+                                                        ? Icons.flag_rounded
+                                                        : Icons.flag_outlined,
+                                                    color: isGoalMet
+                                                        ? const Color(0xFF00C853)
+                                                        : theme.colorScheme.onSurfaceVariant,
+                                                  ),
+                                                ),
                                               ),
                                             ],
                                           ),
                                         ),
                                       ),
                                     ],
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ] else if (lastFast?.endTimeMs != null) ...[
+                                InkWell(
+                                  onTap: () => onOpenTimeline?.call(lastFast.id),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.surfaceContainerHighest
+                                          .withValues(alpha: 0.45),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.history_rounded,
+                                          size: 16,
+                                          color: theme.colorScheme.primary,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Last fast ended ${_formatHoursMinutes(nowUtc.difference(DateTime.fromMillisecondsSinceEpoch(lastFast!.endTimeMs!, isUtc: true)))} ago',
+                                          style: theme.textTheme.labelMedium?.copyWith(
+                                            color: theme.colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Icon(
+                                          Icons.chevron_right_rounded,
+                                          size: 16,
+                                          color: theme.colorScheme.onSurfaceVariant,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 16),

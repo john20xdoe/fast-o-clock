@@ -14,6 +14,10 @@ class FastValidationException implements Exception {
 }
 
 class DatabaseService {
+  static const int minCompletedFastDurationMs = 4 * 3600000;
+  static const String minCompletedFastDurationError =
+      'You did not reach at least 4 hours to begin burning glycogen. This cannot be record as fasting.';
+
   static const String _dbName = 'fast_oclock.db';
   static const int _dbVersion = 1;
 
@@ -134,9 +138,9 @@ class DatabaseService {
           'End time cannot be in the future.',
         );
       }
-      if (record.endTimeMs! < record.startTimeMs + 60000) {
+      if (record.endTimeMs! < record.startTimeMs + minCompletedFastDurationMs) {
         throw const FastValidationException(
-          'End time must be at least 1 minute after start time.',
+          minCompletedFastDurationError,
         );
       }
     }

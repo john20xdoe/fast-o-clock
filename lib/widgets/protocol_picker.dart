@@ -112,6 +112,18 @@ class _ProtocolPickerState extends State<ProtocolPicker> {
                   });
                 },
               ),
+              if (_customHours < 4) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    'You can still receive a notification at the end of this period, but anything less than 4 hours will not be recorded',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.tonal(

@@ -9,7 +9,7 @@ class FastRecord {
   final int? endTimeMs;
   final int targetDurationMin;
   final String? note;
-  final String? mood; // 'great', 'good', 'okay', 'hard'
+  final String? mood; // 'great', 'okay', 'challenging', 'bad'
   final int createdAtMs;
   final int updatedAtMs;
 

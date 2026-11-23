@@ -93,5 +93,41 @@ void main() {
         throwsA(isA<FastValidationException>()),
       );
     });
+
+    test('enforces 4-hour minimum duration for completed fasts', () async {
+      final tooShort = FastRecord(
+        id: 'short_1',
+        protocolId: '16_8',
+        startTimeMs: baseNowMs - 4 * 3600000 + 60000,
+        endTimeMs: baseNowMs,
+        targetDurationMin: 960,
+        createdAtMs: baseNowMs,
+        updatedAtMs: baseNowMs,
+      );
+
+      expect(
+        () => dbService.insertRecord(tooShort, nowUtcMs: baseNowMs),
+        throwsA(
+          isA<FastValidationException>().having(
+            (e) => e.message,
+            'message',
+            DatabaseService.minCompletedFastDurationError,
+          ),
+        ),
+      );
+
+      final exactFourHours = FastRecord(
+        id: 'valid_4h',
+        protocolId: '16_8',
+        startTimeMs: baseNowMs - 4 * 3600000,
+        endTimeMs: baseNowMs,
+        targetDurationMin: 960,
+        createdAtMs: baseNowMs,
+        updatedAtMs: baseNowMs,
+      );
+      await dbService.insertRecord(exactFourHours, nowUtcMs: baseNowMs);
+      final fetched = await dbService.getRecordById('valid_4h');
+      expect(fetched?.id, 'valid_4h');
+    });
   });
 }
