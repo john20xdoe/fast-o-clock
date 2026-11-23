@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/fast_protocol.dart';
 import '../state/fasting_controller.dart';
+import '../widgets/protocol_picker.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -65,42 +66,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     flex: 5,
                     child: ListView(
                       children: FastProtocol.presets.map((preset) {
-                        final selected = _selectedProtocolId == preset.id;
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          color: selected
-                              ? theme.colorScheme.primaryContainer
-                                  .withValues(alpha: 0.4)
-                              : null,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            side: selected
-                                ? BorderSide(
-                                    color: theme.colorScheme.primary,
-                                    width: 1.5,
-                                  )
-                                : BorderSide.none,
-                          ),
-                          child: ListTile(
-                            onTap: () {
-                              setState(() {
-                                _selectedProtocolId = preset.id;
-                              });
-                            },
-                            title: Text(
-                              preset.label,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            subtitle: Text(preset.description),
-                            trailing: selected
-                                ? Icon(
-                                    Icons.check_circle_rounded,
-                                    color: theme.colorScheme.primary,
-                                  )
-                                : null,
-                          ),
+                        return ProtocolPresetCard(
+                          preset: preset,
+                          isSelected: _selectedProtocolId == preset.id,
+                          bottomMargin: 10,
+                          borderRadius: 14,
+                          onTap: () {
+                            setState(() {
+                              _selectedProtocolId = preset.id;
+                            });
+                          },
                         );
                       }).toList(),
                     ),

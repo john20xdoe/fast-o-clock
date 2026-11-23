@@ -72,45 +72,17 @@ class _ProtocolPickerState extends State<ProtocolPicker> {
               ),
               const SizedBox(height: 12),
               ...FastProtocol.presets.map((preset) {
-                final isSelected = _selectedId == preset.id;
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  color: isSelected
-                      ? theme.colorScheme.primaryContainer
-                          .withValues(alpha: 0.4)
-                      : null,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: isSelected
-                        ? BorderSide(
-                            color: theme.colorScheme.primary,
-                            width: 1.5,
-                          )
-                        : BorderSide.none,
-                  ),
-                  child: ListTile(
-                    onTap: () {
-                      Navigator.of(context).pop(
-                        ProtocolPickerResult(
-                          protocolId: preset.id,
-                          targetDurationMin: preset.targetDurationMin,
-                        ),
-                      );
-                    },
-                    title: Text(
-                      preset.label,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                return ProtocolPresetCard(
+                  preset: preset,
+                  isSelected: _selectedId == preset.id,
+                  onTap: () {
+                    Navigator.of(context).pop(
+                      ProtocolPickerResult(
+                        protocolId: preset.id,
+                        targetDurationMin: preset.targetDurationMin,
                       ),
-                    ),
-                    subtitle: Text(preset.description),
-                    trailing: isSelected
-                        ? Icon(
-                            Icons.check_circle_rounded,
-                            color: theme.colorScheme.primary,
-                          )
-                        : null,
-                  ),
+                    );
+                  },
                 );
               }),
               const Divider(height: 24),
@@ -150,6 +122,59 @@ class _ProtocolPickerState extends State<ProtocolPicker> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class ProtocolPresetCard extends StatelessWidget {
+  final FastProtocol preset;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final double bottomMargin;
+  final double borderRadius;
+
+  const ProtocolPresetCard({
+    super.key,
+    required this.preset,
+    required this.isSelected,
+    required this.onTap,
+    this.bottomMargin = 8,
+    this.borderRadius = 12,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.only(bottom: bottomMargin),
+      color: isSelected
+          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
+          : null,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(borderRadius),
+        side: isSelected
+            ? BorderSide(
+                color: theme.colorScheme.primary,
+                width: 1.5,
+              )
+            : BorderSide.none,
+      ),
+      child: ListTile(
+        onTap: onTap,
+        title: Text(
+          preset.label,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: Text(preset.description),
+        trailing: isSelected
+            ? Icon(
+                Icons.check_circle_rounded,
+                color: theme.colorScheme.primary,
+              )
+            : null,
       ),
     );
   }

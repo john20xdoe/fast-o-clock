@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -26,13 +27,14 @@ class TimerRing extends StatefulWidget {
   State<TimerRing> createState() => _TimerRingState();
 }
 
-class _TimerRingState extends State<TimerRing>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _emberController;
+class _TimerRingState extends State<TimerRing> {
+  static const Duration _frameInterval = Duration(milliseconds: 65);
+
+  Timer? _emberTimer;
   final math.Random _rng = math.Random();
   double _currentEmber = 0.78;
   double _targetEmber = 0.85;
-  int _lastTickMs = 0;
+  int _lastHopMs = 0;
   int _nextHopMs = 90;
 
   bool get _shouldAnimateEmber => widget.isActive && !widget.isGoalMet;
@@ -40,23 +42,25 @@ class _TimerRingState extends State<TimerRing>
   @override
   void initState() {
     super.initState();
-    _emberController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 10),
-    )..addListener(_stepEmberFlicker);
+    _syncTimer();
+  }
+
+  void _syncTimer() {
     if (_shouldAnimateEmber) {
-      _emberController.repeat();
+      _emberTimer ??= Timer.periodic(_frameInterval, (_) => _stepEmberFlicker());
+    } else {
+      _emberTimer?.cancel();
+      _emberTimer = null;
     }
   }
 
   void _stepEmberFlicker() {
+    if (!mounted) return;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
-    if (_lastTickMs == 0) {
-      _lastTickMs = nowMs;
-      return;
-    }
-    if (nowMs - _lastTickMs >= _nextHopMs) {
-      _lastTickMs = nowMs;
+    if (_lastHopMs == 0) {
+      _lastHopMs = nowMs;
+    } else if (nowMs - _lastHopMs >= _nextHopMs) {
+      _lastHopMs = nowMs;
       _nextHopMs = 65 + _rng.nextInt(135); // 65-200ms irregular cadence
       final roll = _rng.nextDouble();
       if (roll < 0.14) {
@@ -69,52 +73,50 @@ class _TimerRingState extends State<TimerRing>
         _targetEmber = 0.58 + _rng.nextDouble() * 0.32;
       }
     }
-    _currentEmber += (_targetEmber - _currentEmber) * 0.24;
+    setState(() {
+      _currentEmber += (_targetEmber - _currentEmber) * 0.24;
+    });
   }
 
   @override
   void didUpdateWidget(covariant TimerRing oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_shouldAnimateEmber && !_emberController.isAnimating) {
-      _lastTickMs = 0;
-      _emberController.repeat();
-    } else if (!_shouldAnimateEmber && _emberController.isAnimating) {
-      _emberController.stop();
+    if (_shouldAnimateEmber && _emberTimer == null) {
+      _lastHopMs = 0;
     }
+    _syncTimer();
   }
 
   @override
   void dispose() {
-    _emberController.dispose();
+    _emberTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final disableAnimations = MediaQuery.disableAnimationsOf(context);
     final trackColor = isDark
         ? Colors.white.withValues(alpha: 0.08)
         : Colors.black.withValues(alpha: 0.08);
+    final emberIntensity = _shouldAnimateEmber
+        ? (disableAnimations ? 0.80 : _currentEmber)
+        : 0.0;
 
     return SizedBox(
       width: widget.size,
       height: widget.size,
-      child: AnimatedBuilder(
-        animation: _emberController,
-        builder: (context, child) {
-          return CustomPaint(
-            painter: _TimerRingPainter(
-              progress: widget.progress.clamp(0.0, 1.0),
-              isActive: widget.isActive,
-              isGoalMet: widget.isGoalMet,
-              isCountdown: widget.isCountdown,
-              emberIntensity: _shouldAnimateEmber ? _currentEmber : 0.0,
-              trackColor: trackColor,
-              strokeWidth: widget.strokeWidth,
-            ),
-            child: child,
-          );
-        },
+      child: CustomPaint(
+        painter: _TimerRingPainter(
+          progress: widget.progress.clamp(0.0, 1.0),
+          isActive: widget.isActive,
+          isGoalMet: widget.isGoalMet,
+          isCountdown: widget.isCountdown,
+          emberIntensity: emberIntensity,
+          trackColor: trackColor,
+          strokeWidth: widget.strokeWidth,
+        ),
         child: Center(
           child: Padding(
             padding: EdgeInsets.all(widget.strokeWidth * 1.8),
