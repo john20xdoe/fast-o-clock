@@ -414,6 +414,12 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
+  Future<String> exportSampleMonthBackupJson() {
+    return _backupService.exportSampleMonthBackupJson(
+      exportedAtMs: nowUtc.millisecondsSinceEpoch,
+    );
+  }
+
   Future<BackupImportResult> importBackupJson(
     String jsonString, {
     BackupImportMode mode = BackupImportMode.mergeById,

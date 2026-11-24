@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:fast_oclock/models/fast_record.dart';
 import 'package:fast_oclock/services/backup_service.dart';
@@ -198,6 +199,67 @@ void main() {
         () => backupService.importBackupJson(badVersion, nowUtcMs: nowMs),
         throwsA(isA<FormatException>()),
       );
+    });
+
+    test(
+        'exportSampleMonthBackupJson generates 30 valid non-overlapping mixed fasts and round-trips cleanly',
+        () async {
+      final sampleJson = await backupService.exportSampleMonthBackupJson(
+        exportedAtMs: nowMs,
+        random: Random(42),
+      );
+
+      final decoded = jsonDecode(sampleJson) as Map<String, dynamic>;
+      expect(decoded['schemaVersion'], BackupService.currentSchemaVersion);
+      expect(decoded['appId'], BackupService.appId);
+      expect(decoded['exportedAtMs'], nowMs);
+
+      final rawRecords = decoded['records'] as List<dynamic>;
+      expect(rawRecords.length, 30);
+
+      final records = rawRecords
+          .map((item) => FastRecord.fromBackupJson(
+                Map<String, dynamic>.from(item as Map),
+              ))
+          .toList();
+
+      bool has1410GoalMet = false;
+      bool has168GoalMet = false;
+      bool hasEarlyEnded = false;
+
+      for (var i = 0; i < records.length; i++) {
+        final r = records[i];
+        expect(r.protocolId, anyOf('14_10', '16_8'));
+        expect(r.targetDurationMin, r.protocolId == '14_10' ? 840 : 960);
+        expect(r.endTimeMs, isNotNull);
+        expect(r.endTimeMs!, lessThanOrEqualTo(nowMs));
+        expect(
+          r.endTimeMs! - r.startTimeMs,
+          greaterThanOrEqualTo(DatabaseService.minCompletedFastDurationMs),
+        );
+
+        if (r.protocolId == '14_10' && r.isGoalMet) has1410GoalMet = true;
+        if (r.protocolId == '16_8' && r.isGoalMet) has168GoalMet = true;
+        if (!r.isGoalMet) hasEarlyEnded = true;
+
+        if (i + 1 < records.length) {
+          expect(r.startTimeMs, greaterThan(records[i + 1].endTimeMs!));
+        }
+      }
+
+      expect(has1410GoalMet, isTrue);
+      expect(has168GoalMet, isTrue);
+      expect(hasEarlyEnded, isTrue);
+
+      final importResult = await backupService.importBackupJson(
+        sampleJson,
+        mode: BackupImportMode.replaceAll,
+        nowUtcMs: nowMs,
+      );
+      expect(importResult.importedCount, 30);
+      expect(importResult.updatedCount, 0);
+      expect(importResult.skippedCount, 0);
+      expect((await dbService.getAllRecords()).length, 30);
     });
   });
 }

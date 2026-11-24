@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -174,6 +175,17 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       onTap: () => _importBackup(context, controller),
                     ),
+                    if (kDebugMode) ...[
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.bug_report_outlined),
+                        title: const Text('Export Sample Month (Debug)'),
+                        subtitle: const Text(
+                          'Generate 30 days of 14:10, 16:8, and early-ended test fasts',
+                        ),
+                        onTap: () => _exportSampleBackup(context, controller),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -262,11 +274,37 @@ class SettingsScreen extends StatelessWidget {
   Future<void> _exportBackup(
     BuildContext context,
     FastingController controller,
-  ) async {
+  ) {
+    final dateStamp = DateFormat('yyyyMMdd').format(DateTime.now());
+    return _shareExportedJson(
+      context,
+      loadJson: controller.exportBackupJson,
+      fileName: 'fast_oclock_backup_$dateStamp.json',
+      subject: "Fast O'Clock Backup ($dateStamp)",
+    );
+  }
+
+  Future<void> _exportSampleBackup(
+    BuildContext context,
+    FastingController controller,
+  ) {
+    final dateStamp = DateFormat('yyyyMMdd').format(DateTime.now());
+    return _shareExportedJson(
+      context,
+      loadJson: controller.exportSampleMonthBackupJson,
+      fileName: 'fast_oclock_sample_month_$dateStamp.json',
+      subject: "Fast O'Clock Sample Month ($dateStamp)",
+    );
+  }
+
+  Future<void> _shareExportedJson(
+    BuildContext context, {
+    required Future<String> Function() loadJson,
+    required String fileName,
+    required String subject,
+  }) async {
     try {
-      final jsonStr = await controller.exportBackupJson();
-      final dateStamp = DateFormat('yyyyMMdd').format(DateTime.now());
-      final fileName = 'fast_oclock_backup_$dateStamp.json';
+      final jsonStr = await loadJson();
       final bytes = utf8.encode(jsonStr);
 
       await SharePlus.instance.share(
@@ -278,7 +316,7 @@ class SettingsScreen extends StatelessWidget {
               mimeType: 'application/json',
             ),
           ],
-          subject: "Fast O'Clock Backup ($dateStamp)",
+          subject: subject,
         ),
       );
     } catch (e) {
