@@ -79,6 +79,15 @@ void main() {
     controller.dispose();
   }
 
+  void setPhoneViewport(WidgetTester tester) {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+  }
+
   Widget buildHarness({
     String? focusedRecordId,
     VoidCallback? onFocusedRecordHandled,
@@ -97,6 +106,7 @@ void main() {
   testWidgets(
       'renders redesigned header, KPIs, chart, month header, distinct moods, and no FAB',
       (WidgetTester tester) async {
+    setPhoneViewport(tester);
     await tester.runAsync(() async {
       await seedFast(
         id: 'f_great',
@@ -183,6 +193,7 @@ void main() {
 
   testWidgets('empty filter shows reset message and Show All restores items',
       (WidgetTester tester) async {
+    setPhoneViewport(tester);
     await tester.runAsync(() async {
       await seedFast(id: 'f1', daysAgo: 1, durationHours: 16);
       await controller.init();
@@ -191,6 +202,8 @@ void main() {
     await tester.pumpWidget(buildHarness());
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('Notes (0)'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Notes (0)'));
     await tester.pumpAndSettle();
 
