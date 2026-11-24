@@ -8,11 +8,12 @@ Adaptive 3-tab shell, screen states, custom widgets, and interaction flows.
 
 - **App Name**: `Fast O'Clock` (`com.neurral.fast_oclock`)
 - **Tagline**: *time to fast — a simple fasting tracker for beginners and pros alike*
-- **Theme Policy**: Dark-first Material 3 theme (`ThemeMode.dark` by default) with `Light` and `System` options.
+- **Typography**: `Lexend` for display/headline/title/label styles; `IBMPlexSans` for body text.
+- **Theme Policy**: Dark-first Material 3 theme (`ThemeMode.dark` by default) with `Light` and `System` options. Supports Android Material You `DynamicColorBuilder` when non-monochrome (`HSLColor.fromColor(scheme.primary).saturation >= 0.08`), otherwise falls back to the `#FF8A00` / `#121417` default palette. `SplashScreen` remains locked to `#121417`.
 - **Semantic Color Tokens**:
   - **Active Fast / Progress Arc**: Warm Amber / Coral gradient (`#FF8A00` → `#FF5252`)
   - **Goal Reached / Completed**: Emerald Green (`#00C853`)
-  - **Early End / Below Goal**: Muted Slate / Amber (`#90A4AE`)
+  - **Early End / Below Goal**: Warm Amber (`#FF8A00`) — unified across Timeline chart and record cards
   - **Surface (Dark)**: Deep Charcoal (`#121417`) with elevated cards (`#1C1F24`)
 
 ---
@@ -21,17 +22,18 @@ Adaptive 3-tab shell, screen states, custom widgets, and interaction flows.
 
 ```mermaid
 flowchart LR
-    BOOT["App Launch"] --> ONBOARD{"isOnboarded?"}
+    BOOT["App Launch"] --> SPLASH["SplashScreen\n(animated icon, #121417)"]
+    SPLASH --> ONBOARD{"isOnboarded?"}
     ONBOARD -- "false" --> OB["OnboardingScreen\n(1-screen quick setup:\npick default protocol & start)"]
     ONBOARD -- "true" --> SHELL["Adaptive 3-Tab Shell"]
-    OB -->|"Complete / Skip"| SHELL
+    OB -->|"Continue"| SHELL
     SHELL --> T1["Tab 1: Fasting"]
     SHELL --> T2["Tab 2: Timeline"]
     SHELL --> T3["Tab 3: Settings"]
 ```
 
 - **Compact Layout (`width < 600dp`)**: Bottom `NavigationBar` with 3 destinations (`Fasting`, `Timeline`, `Settings`).
-- **Expanded Layout (`width >= 600dp`)**: Side `NavigationRail` + centered content container (max width `640dp`) for tablet/desktop ergonomics.
+- **Expanded Layout (`width >= 600dp`)**: Side `NavigationRail` + centered content container for tablet/desktop ergonomics.
 
 ---
 
@@ -41,54 +43,92 @@ flowchart LR
 
 ```text
 +---------------------------------------+
-|  Fast O'Clock          [16:8 Preset v]|
+|             Fast O'Clock              |
+|             time to fast              |
 |                                       |
 |           . - ~ ~ ~ - .               |
-|       . '   [Autophagy] ' .           |
-|     /       Elapsed (tap)   \         |
-|    |        14:22:09         |        |
-|     \       Goal: 16h 00m   /         |
-|       .                   .           |
+|       . '   Goal: 16 hours ' .        |
+|     /         14:22:09        \       |
+|    |    Elapsed  <->  Remaining |     |
+|     \       [Ketosis 12h-18h]  /      |
+|       .                       .       |
 |         ' - . _ _ _ . - '             |
 |                                       |
-|  Started: Yesterday, 8:00 PM [Edit]   |
-|  Target:  Today, 12:00 PM             |
+|  Started 14 hrs ago                   |
+|  8:00 PM               NOV 23 • MON   |
+|  Target End in 1 hr                   |
+|  12:00 PM              NOV 24 • TUE   |
 |                                       |
-|  [            End Fast             ]  |
+|  [16:8 Preset]   [     End Fast     ] |
 +---------------------------------------+
 ```
 
 #### Three Operational States
 1. **Idle (No Active Fast)**:
-   - Protocol chip at top is tappable to switch presets (`14:10`, `16:8`, `18:6`, `20:4`, `23:1`, `36h`, `Custom`).
-   - Ring displays empty track + selected protocol duration (e.g., `16 hours`) + time since last completed fast.
-   - Primary CTA: **Start Fast** (creates active `FastRecord` with `startTimeMs = now` or user-picked past start time).
+   - Top displays `AppBrandTitle` (`Fast O'Clock` + `time to fast`).
+   - Center `TimerRing` displays `restaurant_rounded` icon, smart status (`"Ready to Fast?"` when `lastCompletedFast == null`, `target >= 24h`, or within 1h / past eating window; else `"Your time to eat"`), and `"Goal: XX hours"` (singular/plural + mins for custom).
+   - Above bottom action row: tappable `"Last fast ended XX ago"` pill (jumps to `TimelineScreen` with `focusedRecordId = lastFast.id`).
+   - Bottom row: `[Protocol Preset]` chip on left + **Begin Fast** primary button on right.
 2. **Fasting — In Progress (`elapsed < target`)**:
-   - Animated circular arc (`TimerRing`) fills proportionally from `0.0` to `1.0` in Amber/Coral.
-   - Center displays current **Metabolic Stage badge** (tappable to view all 5 stages & hour thresholds), **Elapsed / Remaining toggle** (tap timer text to switch), and percentage (`89%`).
-   - Below ring: `Started` timestamp with **[Edit]** button, and computed `Target End` timestamp. Protocol chip remains tappable to adjust goal mid-fast.
-   - Primary CTA: **End Fast** (opens `FastEditorSheet` pre-filled with `endTime = now`).
+   - Animated circular arc (`TimerRing`) fills proportionally from `0.0` to `1.0` in Amber/Coral (or Cool Cyan/Blue in Countdown mode).
+   - Center displays `Goal: XX hours`, tabular `HH:MM:SS`, tappable `Elapsed <-> Remaining` toggle, and current **Metabolic Stage badge** (tappable to view all 6 stages).
+   - Below ring: tappable **Started** and **Target End** card (`HH:MM PM` left, `MMM DD • WKDAY` all-caps right, pencil icon / flag icon) opening `Edit Ongoing Fast` sheet.
+   - Bottom row: `[Protocol Preset]` chip + **End Fast** CTA (opens `FastEditorSheet` in `completeActive` mode).
 3. **Fasting — Goal Reached (`elapsed >= target`)**:
-   - Ring arc turns **Emerald Green** at 100% with an subtle over-goal indicator (`+1h 15m past goal`).
-   - Primary CTA highlighted: **Complete Fast**.
+   - Ring arc turns **Emerald Green** at 100% with `+Xh Ym past goal` pill and green flag icon on Target End.
+   - Primary CTA highlighted in green: **Fast Complete?**.
 
 ---
 
 ### 3.2 Tab 2 — `TimelineScreen`
 
-1. **Summary Header Card**:
-   - **Current Streak** (flame icon + consecutive goal-met days).
-   - **Total Fasts** count & **Average Duration** (`16h 12m`).
-   - **7-Day Bar**: 7 vertical capsules (`M T W T F S S`) color-coded by status (Emerald = Goal Met, Amber = Completed < Goal, Outlined = Active, Dim = None).
-2. **History List**:
-   - Grouped by month or chronological cards showing:
-     - Local Date & Day of week
-     - Protocol badge (`16:8`) + Goal status pill (`Goal Met` / `Ended Early`)
-     - Actual duration (`16h 05m`) and start → end timestamps
-     - Optional mood icon & note snippet
-   - **Tap Card**: Opens `FastEditorSheet` to edit start time, end time, protocol, mood, or note, or **Delete** record (with confirmation dialog).
-3. **Floating / Header Action — `+ Add Past Fast`**:
-   - Opens `FastEditorSheet` in manual-entry mode for logging forgotten past fasts.
+```text
++---------------------------------------------+
+| Timeline                      [+ Log Fast]  |
++---------------------------------------------+
+|       ( 7D )   |   30D   |   All            |
++---------------------------------------------+
+|  🔥 1d Streak (Best 12d)   ✅ 73% Met (22/30)|
+|  ⏱ 13h 39m Avg             🏆 18h 12m Best  |
+|---------------------------------------------|
+|  20h |                                      |
+|  16h | - - - - - - - - - - - - Default 16h  |
+|      |  █    ▄    █    █    ▆    ○    ·     |
+|      | W18  T19  F20  S21  S22  M23  T24    |
+|      | [Mon, Nov 23 · 16h 26m / 16h · Edit] |
++---------------------------------------------+
+| (All 30) (Goal Met 22) (Early 8) (Notes 9)  |
++---------------------------------------------+
+|  NOVEMBER 2026      24 fasts · 75% · 14h10m |
+| +-----------------------------------------+ |
+| |▎ Mon, Nov 23   [16:8] [Ketosis]   +26m  | |
+| |▎ 16h 26m   6:41 PM → 11:07 AM   😐 Okay | |
+| |▎ ████████████████████████████████       | |
+| +-----------------------------------------+ |
++---------------------------------------------+
+```
+
+1. **Compact Header**: `Timeline` title left + `+ Log Fast` `FilledButton.tonalIcon` right (no floating action button overlapping bottom cards).
+2. **Range Selector (`7D` | `30D` | `All`)**: Scopes the `Goal Met %`, `Average`, `Longest` KPIs and the chart. Defaults to `30D` when `history.length > 7`, else `7D`. `Streak (Best Xd)` stays **global (all-time)** regardless of selected range.
+3. **2×2 KPI Strip + Interactive `DurationBarChart`**:
+   - Single `CustomPainter` wrapped in `RepaintBoundary` with dashed **`Default <Xh>`** reference line, Emerald (`#00C853`) Goal Met bars, Amber (`#FF8A00`) Ended Early bars, primary-outlined Active bar, and muted baseline dots for empty days.
+   - `7D` / `30D` plot one bar per local calendar day using the day's best/longest single fast (without summing multi-fast days).
+   - `All` plots up to 12 weekly-average buckets (read-only on tap).
+   - Tapping a daily bar shows an inline readout pill (`Mon, Nov 23 · 16h 26m / 16h · Goal Met`); tapping the readout opens `FastEditorSheet` directly.
+4. **Filter Chips & Empty-Filter State**:
+   - Horizontally scrollable `FilterChip` / `ChoiceChip` row (`All`, `Goal Met`, `Ended Early`, `Notes` with counts) in a `SliverToBoxAdapter`.
+   - When `history.isNotEmpty` and a filter matches 0 fasts, displays `"No fasts match this filter"` with a `"Show All"` reset action.
+5. **Month-Grouped History List (`SliverList.builder`)**:
+   - Always shows full history (filtered only by the filter chips), grouped under compact month headers (`NOVEMBER 2026` + `count · % met · avg`).
+   - **Compact Record Row (~96–112dp)**:
+     - 4dp left status rail (`#00C853` Goal Met / `#FF8A00` Ended Early).
+     - Top row: local end date (`Mon, Nov 23`, year only when != current year), protocol pill (`16:8`), metabolic stage reached (`Ketosis`, `Autophagy`, etc.), and goal delta (`+26m` / `-3h 17m`).
+     - Middle row: bold tabular duration (`16h 26m`), start → end time window, and **distinct mood icon + tint** (`Great`, `Okay`, `Challenging`, `Bad`).
+     - Optional note preview (up to 2 lines, shown only when note exists).
+     - Bottom 3dp goal progress hairline (`0%..100%`).
+   - Scroll offset preserved via `PageStorageKey('timeline_scroll')`.
+   - `focusedRecordId` (from `FastingScreen` `"Last fast ended"` pill) auto-clears conflicting filter if needed, scrolls to the target card, pulses a brief highlight border, and clears via `onFocusedRecordHandled`.
+   - **Tap Card**: Opens `FastEditorSheet` (`editPast`) to edit or delete record (with confirmation dialog).
 
 ---
 
@@ -96,31 +136,24 @@ flowchart LR
 
 Grouped into clean list sections:
 1. **Fasting Preferences**:
-   - Default Protocol selector
+   - `Fasting Patterns` selector (`ProtocolPicker`)
 2. **Notifications**:
-   - `Fasting Goal Reached` switch (requests OS permission on first enable)
-   - `Eating Window Ending` switch (subtext: *"Reminds you to start your next fast for protocols under 24h"*)
+   - `Fasting Goal Reached` switch
+   - `Eating Window Ending` switch (`"Reminds you to start your next fast for protocols under 24h"`)
 3. **Appearance**:
    - Theme segmented control (`Dark` / `Light` / `System`)
 4. **Data & Family Backup**:
-   - `Export Backup (JSON)` — triggers OS share/save sheet
-   - `Import Backup (JSON)` — picks `.json` file, prompts **Merge (Recommended)** vs. **Replace All**, displays result snackbar
+   - `Export Backup to your Files` — triggers OS share/save sheet
+   - `Import Backup from your Files` — picks `.json` file, prompts **Merge (Recommended)** vs. **Replace All**, displays result snackbar
+   - `Export Sample Month (Debug)` — visible only when `kDebugMode == true`
 5. **About**:
-   - `Fast O'Clock` version, slogan (*time to fast*), copyright `pinoy.dev`, privacy statement (*"100% offline. Your data never leaves your device."*).
+   - `Fast O'Clock` version (`v1.0.0`), slogan (*time to fast — a simple fasting tracker for beginners and pros alike.*), privacy statement (*"100% offline. Your data never leaves your device."*), dynamic copyright (`© YEAR. neurral and pinoy.dev`).
 
 ---
 
 ## 4. Modal Bottom Sheets & Validation UX
 
-### `FastEditorSheet` (Used for Start Edit, End Fast, Edit Past Fast, Add Past Fast)
-- **Fields**:
-  - Protocol / Target Duration selector
-  - `Start Time` date-time picker
-  - `End Time` date-time picker (hidden when editing an active fast's start time)
-  - Mood selector row (`Great`, `Good`, `Okay`, `Hard`)
-  - Optional `Note` text field (max 280 chars)
-- **Live Validation Banner**:
-  - Immediately validates on picker change against:
-    1. `start < end <= now`
-    2. `DatabaseService.findOverlappingRecord(startMs, endMs, excludeId)`
-  - If an overlap is detected, displays inline error banner (*"Overlaps with 16:8 fast on Nov 20 (8:00 PM – 12:00 PM)"*) and disables the **Save** button until resolved.
+### `FastEditorSheet` (`editActiveStart`, `completeActive`, `editPast`, `addPast`)
+- **`editActiveStart` (`Edit Ongoing Fast`)**: Displays inline `TumblerDateTimePicker` for start time, live overlap/future validation, and bottom `[Delete | Save]` row.
+- **`completeActive` (`Break your fast:`)**: Protocol chip, compact Start/End panels (End Time opens `TumblerDateTimePicker`), goal-met encouragement banner, mood chips (`Great!`, `Okay`, `Challenging`, `Bad`), optional `Note` (max 280 chars), and bottom `[Delete | Save to Timeline]` row.
+- **`editPast` / `addPast`**: Protocol list tile (`ProtocolPicker`), Start/End `ListTile`s opening `TumblerDateTimePicker`, mood chips, optional `Note`, live validation banner (including 4-hour minimum duration and SQLite overlap check), and **Save** CTA (with header trash icon in `editPast`).

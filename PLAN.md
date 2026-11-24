@@ -1,159 +1,65 @@
-# Fast-O-Clock — Fresh Flutter Native Plan
+# Fast O'Clock — Timeline & Performance Redesign Plan
 
-Simplified, ad-free, offline-first intermittent fasting tracker for personal and family use (inspired by *Fasting - Intermittent Fasting*).
-
----
-
-## Scavenged Identity & Concepts
-
-Preserved from the previous prototypes:
-
-- **App Identity:**
-  - Name: `Fast O'Clock`
-  - Bundle / App ID: `com.neurral.fast_oclock`
-  - Slogan: `time to fast`
-  - Tagline: `a simple fasting tracker for beginners and pros alike`
-  - Copyright: `pinoy.dev`
-- **UX & Flow Concepts:**
-  - Optional splash / first-run onboarding (`isOnboarded` flag) → main 3-tab shell (`Fasting`, `Timeline`, `You / Settings`).
-  - Dark-first theme with Light/System toggle.
-  - Responsive navigation (`BottomNavigationBar` on phones, `NavigationRail` on tablets/wide screens).
-  - Credits / About view in Settings.
+Focused plan for upgrading Tab 2 (`TimelineScreen`) and decoupling 1 Hz timer rebuilds across the app, following full completion of the initial MVP and UI/UX feedback rounds.
 
 ---
 
-## Core Design Principles
-
-- **Offline-first & private:** Zero accounts, zero cloud sync, zero ads/paywalls. All data stored locally on device.
-- **Timestamp-based timer:** Store `startTime` + `targetDurationMinutes`. Elapsed/remaining time computed from `DateTime.now()` — accurate across app kills and reboots without background timer services.
-- **Simple, minimal dependencies:** Stick to well-maintained Flutter packages (`shared_preferences`, `sqflite`, `flutter_local_notifications`, `timezone`, `provider` or `ChangeNotifier`).
-
----
-
-## Feature Scope (MVP)
-
-### 1. Fasting Protocols (Presets + Custom)
-- Built-in presets: `14:10`, `16:8` (default), `18:6`, `20:4`, `23:1 (OMAD)`, `36h`, plus **Custom** duration.
-- Quick switch before starting (or adjust goal mid-fast).
-
-### 2. Main Timer Screen (`Fasting`)
-- Circular progress ring (`CustomPainter`) showing:
-  - Elapsed time (or remaining time toggle)
-  - Target end time (e.g., `Ends Today 12:00 PM`)
-  - Current metabolic phase badge (e.g., Fed → Blood Sugar Drop → Fat Burning → Ketosis → Autophagy)
-- Single primary CTA: **Start Fast** / **End Fast**.
-- Editable **Start Time** (common real-world need: "forgot to tap start 30 mins ago") and **End Time** when logging/finishing.
-- Optional quick note/mood on fast completion.
-
-### 3. History & Timeline (`Timeline`)
-- Chronological list of completed fasts (date, protocol, actual duration, goal met/missed indicator).
-- Edit or delete past entries; manual "Add Past Fast" option.
-- Simple summary metrics: current streak, total fasts, average fast duration, weekly completion bar.
-
-### 4. Local Notifications
-- Scheduled notification when **fasting goal is reached**.
-- Optional reminder when **eating window is ending** (next fast due).
-- Cancelled/rescheduled automatically on fast end or goal edit.
-
-### 5. Settings (`Settings`)
-- Default fasting protocol.
-- Notification toggles (goal reached, eating window reminder).
-- Theme mode (System / Dark / Light).
-- JSON export / import (simple manual backup/restore for family devices).
+## Stage 0 — Sync `/design` Docs & Plan Baseline
+- [x] Sync `design/ARCHITECTURE.md` (actual tree, `clockTick`, `dynamic_color`, fonts, 15m eating-window alert, debug export).
+- [x] Sync `design/DATA_MODEL.md` (4h minimum duration, 4 mood tags, 6 `MetabolicStage` thresholds, Timeline metrics & bucket math).
+- [x] Sync `design/UI_SPEC.md` (`FastingScreen`, `SettingsScreen`, `FastEditorSheet`, and redesigned `TimelineScreen`).
 
 ---
 
-## Architecture & Design Specifications
-
-Detailed architecture and specifications live in `/design`:
-- [`design/ARCHITECTURE.md`](design/ARCHITECTURE.md) — System invariants, root project layout, state flow, notification lifecycle, dependency matrix.
-- [`design/DATA_MODEL.md`](design/DATA_MODEL.md) — Single-table SQLite schema (`fast_records` for active + completed fasts), non-overlapping time validation, streak math, versioned JSON backup format.
-- [`design/UI_SPEC.md`](design/UI_SPEC.md) — Dark-first theme tokens, adaptive 3-tab shell, screen states, and `FastEditorSheet` validation UX.
-
-```text
-/Volumes/Dev/lab/fast-o-clock/  # Root Flutter project
-├── design/
-│   ├── ARCHITECTURE.md
-│   ├── DATA_MODEL.md
-│   └── UI_SPEC.md
-├── lib/
-│   ├── main.dart
-│   ├── app.dart
-│   ├── models/        (fast_record, fast_protocol, metabolic_stage, app_settings)
-│   ├── services/      (database_service, preferences_service, notification_service, backup_service)
-│   ├── state/         (fasting_controller)
-│   ├── screens/       (onboarding_screen, fasting_screen, timeline_screen, settings_screen)
-│   └── widgets/       (timer_ring, metabolic_badge, protocol_picker, fast_editor_sheet)
-└── test/
-```
+## Stage 1 — Performance Foundation: Isolate 1 Hz Ticker + Day Rollover
+- **`lib/state/fasting_controller.dart`**:
+  - Expose `ValueListenable<DateTime> clockTick` (`ValueNotifier`) and dispose it in `dispose()`.
+  - Compute `localDayKey` on demand (`year * 10000 + month * 100 + day`) and track `_lastNotifiedDayKey`.
+  - `_syncTicker()` immediately refreshes `clockTick.value = nowUtc`; `_ticker` updates `clockTick` every 1s **without** `notifyListeners()`, calling `notifyListeners()` only when `localDayKey` changes at local midnight.
+  - `didChangeAppLifecycleState(resumed)` refreshes `clockTick` and notifies if the local day rolled over.
+  - Add monotonic `historyVersion` incremented on `_reloadRecords()`, and memoize legacy stats getters (`currentStreak`, `averageFastDuration`, `lastSevenDaysSummary`).
+- **`lib/screens/fasting_screen.dart`**:
+  - Wrap time-dependent active & idle UI in `ValueListenableBuilder<DateTime>(valueListenable: controller.clockTick)` reading live `controller.nowUtc` directly.
+- **`lib/app.dart`**:
+  - Replace `context.watch<FastingController>()` in `FastOClockApp.build` with `Selector` on `(isInitialized, isOnboarded, flutterThemeMode)` so `MaterialApp` performs 0 rebuilds/sec during active fasts.
+  - Keep `_pages[_selectedIndex]` (no `IndexedStack`) and pass `onFocusedRecordHandled` to `TimelineScreen`.
 
 ---
 
-## Implementation Phases
-
-1. **Phase 0 — Bootstrap**
-   - Run `flutter create` at repository root; add core dependencies; configure Android/iOS app name, bundle ID (`com.neurral.fast_oclock`), and notification permissions.
-2. **Phase 1 — Data & Controller**
-   - Implement `FastRecord`, `FastProtocol`, `MetabolicStage`, `AppSettings`, `DatabaseService` (single SQLite table + overlap validation), `PreferencesService`, `BackupService`, and `FastingController` with unit tests.
-3. **Phase 2 — Core UI**
-   - Build adaptive 3-tab shell (`Fasting`, `Timeline`, `Settings`) + `OnboardingScreen`, `TimerRing`, `MetabolicBadge`, `ProtocolPicker`, and `FastEditorSheet`.
-4. **Phase 3 — Notifications**
-   - Wire `NotificationService` to schedule/cancel Goal Reached (`1001`) and Eating Window (`1002`, `<24h` protocols) alerts on Android & iOS.
-5. **Phase 4 — History, Stats & Backup**
-   - Wire timeline list, edit/delete/manual-add with overlap checks, consecutive goal-met day streak & 7-day bar, and JSON export/import (Merge by ID + Replace All).
-6. **Phase 5 — Polish & Family Distribution**
-   - App icon, splash screen, physical device testing, release APK (Android) / Xcode archive or TestFlight (iOS).
+## Stage 2 — Pure Timeline View-Model & Memoized Stats
+- **`lib/models/timeline_summary.dart`**:
+  - `TimelineRange` (`d7`, `d30`, `all`) and `TimelineFilter` (`all`, `goalMet`, `endedEarly`, `withNotes`).
+  - Single-pass $O(N)$ `TimelineSnapshot.build(...)` computing:
+    - Global all-time `currentStreak` and `bestStreak` (DST-safe day stepping).
+    - Range-scoped KPIs (`totalFastsInRange`, `goalMetCountInRange`, `completionPercentInRange`, `averageDurationInRange`, `longestDurationInRange`).
+    - Daily single-best-fast chart buckets (`7D`/`30D`, without summing multi-fast days) and up to 12 weekly-average buckets (`All`, `primaryRecord = null`).
+    - Pre-formatted `TimelineMonthHeader` and `TimelineRecordItem` rows (date, duration, window, goal delta, `FastProtocol`, `MetabolicStage`, `progressRatio`, `semanticLabel`).
 
 ---
 
-## UI/UX Testing Feedback (To Implement)
+## Stage 3 — Single Interactive Bar Chart
+- **`lib/widgets/timeline_chart.dart`**:
+  - `DurationBarChart` rendered with a single `CustomPainter` inside `RepaintBoundary`.
+  - Dashed horizontal reference line labeled `Default <Xh>`, unified `#00C853` / `#FF8A00` colors, tap-to-inspect readout pill (`Edit` on daily completed bars; read-only summary on `All` weekly / empty / active bars), and full `Semantics` summary.
 
-### 1. Theming & Material You
-- **Default App Palette:** Preserve current `#FF8A00` / `#121417` color palette as the default app palette.
-- **Android Dynamic Color (Material You):** Add `dynamic_color` to `pubspec.yaml` and wrap `MaterialApp` in `DynamicColorBuilder`. Apply the Android dynamic `ColorScheme` only when `lightDynamic != null` and `HSLColor.fromColor(scheme.primary).saturation >= 0.08` (non-monochrome); otherwise fall back to the default app palette.
-- **Splash Isolation:** Verify `SplashScreen` and `TimelapseIconPainter` stay locked to the hardcoded `#121417` default palette (already hardcoded; do not switch to theme colors).
+---
 
-### 2. Splash Screen
-- **Brand Typography:** Bump `"Fast O'Clock"` splash text weight from `w700` to `w800` (`FontVariation.weight(800)`) to match the Fasting screen header style.
+## Stage 4 — Redesigned `TimelineScreen`
+- **`lib/screens/timeline_screen.dart`**:
+  - `StatefulWidget` watching only `(historyVersion, activeFast?.id, localDayKey, targetDurationMin)` via `Selector`.
+  - Compact header (`Timeline` + `+ Log Fast` tonal button; no occluding extended FAB).
+  - Range `SegmentedButton` (`7D` | `30D` | `All`), 2×2 KPI strip, `DurationBarChart`, horizontally scrollable filter chips (`All`, `Goal Met`, `Ended Early`, `Notes`), and empty-filter `"Show All"` state.
+  - Flattened `SliverList.builder` with `PageStorageKey('timeline_scroll')`, month headers, compact rows (~96–112dp) with distinct mood icons/tints, and `focusedRecordId` jump + 1.2s highlight pulse.
 
-### 3. Fasting Screen Layout (AlamUI DZ/IZ)
-- **Viewport-Filling Scroll Container:** Replace the bare `SingleChildScrollView` with `LayoutBuilder` → `SingleChildScrollView` → `ConstrainedBox(minHeight: constraints.maxHeight)` → `IntrinsicHeight` so `MainAxisAlignment.spaceBetween` works on tall screens without breaking scroll on small viewports.
-- **`AppBrandTitle` Component:** Combine `"Fast O'Clock"` and `"time to fast"` into a single `AppBrandTitle` component anchored at the top of the screen, with `space-between` spacing below it.
-- **Timer Positioning & Bottom Action:** Center the circular timer on-screen offset ~25% above screen center, with the **Begin Fast** (formerly Start Fast) button anchored at the bottom (`space-between` before and after the circular timer).
-- **Preset Dropdown Placement:** Move the Preset dropdown directly above the **Begin Fast** button.
+---
 
-### 4. Timer Ring — Ready / Eating Window State
-- **Last Fast Notification Panel:** Move `"Last ended XX ago"` out of the timer ring into a tappable notification panel between `AppBrandTitle` and the timer ring, revised to `"Last fast ended xx ago"`. Pass an `onOpenTimeline([String? recordId])` callback from `AdaptiveShell` to `FastingScreen` so tapping jumps to the `Timeline` tab (record autofocus stubbed via optional `recordId` hook).
-- **Eating Window Icon:** Replace the hourglass icon with a spoon-fork-plate icon at **2x** the current size.
-- **Smart Eating Window Label:** For `< 24h` protocols (up to OMAD, `eatingWindow = 24h - fastingDuration`), show `"Ready to Fast?"` when `lastCompletedFast == null` (fresh install), when `targetDurationMin >= 1440`, or when elapsed time since last fast ended enters the final hour / exceeds the eating window (`elapsed >= eatingWindow - 1h`); otherwise show `"Your time to eat"`.
-- **Goal Label Copy:** Change `"Target: XXh"` to `"Goal: XX hours"` (handle singular/plural: `1 hour`, `N hours`, or `N hours M mins` for custom non-whole hours).
+## Stage 5 — Tests & Verification
+- **`test/models/timeline_summary_test.dart`**: Global streak vs range KPIs, same-day multi-fast selection, mixed protocols, `All` weekly buckets, month headers, filters, deltas, metabolic stages.
+- **`test/state/fasting_controller_test.dart`**: `clockTick` ticks without `notifyListeners()`, `_syncTicker()` refreshes immediately, midnight rollover notifies once, live `localDayKey`, `historyVersion`, `dispose()`.
+- **`test/screens/timeline_screen_test.dart`**: Header & no FAB, range toggle, filter chips & empty-filter reset, distinct mood icons, 0 rebuilds during active fast ticks, `focusedRecordId` highlight.
 
-### 5. Settings Screen
-- **Fasting Patterns Header & Copy:** Retitle `"Choose Fasting Protocol"` to `"Fasting Patterns"` and add description below heading: `"Choose the most realistic and achievable option for you. Remember that the quality of food you take during your eating window is still of utmost importance."`
-- **Notifications (Eating Window Ending & Permissions):**
-  - Request OS notification permissions on first launch / onboarding completion (not only when toggling settings switches, since `notifyGoalReached` defaults to `true`).
-  - Trigger eating-window-ending notification **15 minutes before** the end of the eating window (clamping to eating-window end if `eatingWindowMin <= 15` so custom short windows still fire), and reschedule when toggling `notifyEatingWindow` ON or changing `updateDefaultProtocol()` while `_activeFast == null`.
-- **Data Backup Labels:** Remove `"JSON"` from option names → `"Export Backup to your Files"` and `"Import Backup from your Files"`.
-- **About / Copyright:** Remove package ID from copyright line; dynamically use current year (`YEAR. neurral and pinoy.dev`).
+---
 
-### 6. Tumbler DateTime Picker (Replace Calendar & Clock Pickers)
-- **Remove Native Pickers:** Replace Material Calendar and Clock pickers across fast editing flows with a custom `TumblerDateTimePicker` widget.
-- **Date Tumbler (`YYYY | MM | DD [DAY]`):** Wheel/tumbler numeric pickers for `YYYY`, `MM`, `DD` (clamping valid days per month/leap year) + read-only `[DAY]` label in dimmer color auto-showing weekday (`MON`, `TUE`, etc.).
-- **Time Tumbler (`AM/PM | HH | MM`):** 12-hour format (`1–12` hours, `00–59` minutes) with `AM/PM` wheel that automatically flips whenever `HH` cycles across `11 ↔ 12`.
-
-### 7. Fasting Active State, Editor Sheet & CTAs
-- **Start / Target End Panels:** Make the entire panel/label tappable; remove `"Edit"` text label, retain pencil icon.
-- **Panel DateTime Format:** Display `HH:MM PM` on the left and `DATE` floated right (gap between time and date). Format `DATE` as `MMM DD • WKDAY` in smaller font size, all-caps.
-- **Target End Flag Icon:** Switch to green check-flag Material icon once the fast passes its goal duration.
-- **Edit Ongoing Fast Sheet (`FastEditorMode.editActiveStart`):**
-  - Rename `"Edit Active Fast"` → `"Edit Ongoing Fast"`.
-  - Remove Protocol selector only in `editActiveStart` (use Preset dropdown on Fasting screen instead); keep Protocol selector + compact tappable Start/End rows opening `TumblerDateTimePicker` for `completeActive`, `editPast`, and `addPast` so Timeline editing and dual-timestamp sheets stay intact.
-  - Immediately display `TumblerDateTimePicker` inline in `editActiveStart` (defaulting to current fast timestamp / today).
-  - Bottom action row: red trash icon + `"Delete"` label on the left (sized to text/content width), paired inline with **Save** button (`Expanded` to fill remaining width).
-- **Primary Fasting CTAs:**
-  - Rename `"Start Fast"` → `"Begin Fast"`.
-  - Rename `"Complete Fast"` → `"Fast Complete?"`, remove checkbox icon, retain green coloring.
-
-### Deferred (Future)
+## Deferred (Future)
 - **Day-Based / Recurring Fasting Patterns** (ADF, 1 day/week, 5-day) — deferred pending streak calculation analysis.
 - **Google Drive Backup** — deferred; focus on local file backup improvements first.
