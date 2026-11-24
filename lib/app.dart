@@ -88,31 +88,45 @@ class _FastOClockAppState extends State<FastOClockApp> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = context.watch<FastingController>();
-    final Widget home;
-    if (!_splashDone) {
-      home = SplashScreen(
-        onFinished: () => setState(() => _splashDone = true),
-      );
-    } else if (!controller.isInitialized) {
-      home = const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    } else if (!controller.settings.isOnboarded) {
-      home = const OnboardingScreen();
-    } else {
-      home = const AdaptiveShell();
-    }
+    return Selector<
+        FastingController,
+        ({
+          bool isInitialized,
+          bool isOnboarded,
+          ThemeMode themeMode,
+        })>(
+      selector: (_, controller) => (
+        isInitialized: controller.isInitialized,
+        isOnboarded: controller.settings.isOnboarded,
+        themeMode: controller.settings.flutterThemeMode,
+      ),
+      builder: (context, state, _) {
+        final Widget home;
+        if (!_splashDone) {
+          home = SplashScreen(
+            onFinished: () => setState(() => _splashDone = true),
+          );
+        } else if (!state.isInitialized) {
+          home = const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        } else if (!state.isOnboarded) {
+          home = const OnboardingScreen();
+        } else {
+          home = const AdaptiveShell();
+        }
 
-    return DynamicColorBuilder(
-      builder: (lightDynamic, darkDynamic) {
-        return MaterialApp(
-          title: "Fast O'Clock",
-          debugShowCheckedModeBanner: false,
-          theme: _buildLightTheme(lightDynamic),
-          darkTheme: _buildDarkTheme(darkDynamic),
-          themeMode: controller.settings.flutterThemeMode,
-          home: home,
+        return DynamicColorBuilder(
+          builder: (lightDynamic, darkDynamic) {
+            return MaterialApp(
+              title: "Fast O'Clock",
+              debugShowCheckedModeBanner: false,
+              theme: _buildLightTheme(lightDynamic),
+              darkTheme: _buildDarkTheme(darkDynamic),
+              themeMode: state.themeMode,
+              home: home,
+            );
+          },
         );
       },
     );
@@ -137,9 +151,20 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
     });
   }
 
+  void _clearFocusedRecord() {
+    if (_focusedRecordId != null) {
+      setState(() {
+        _focusedRecordId = null;
+      });
+    }
+  }
+
   List<Widget> get _pages => [
         FastingScreen(onOpenTimeline: _openTimeline),
-        TimelineScreen(focusedRecordId: _focusedRecordId),
+        TimelineScreen(
+          focusedRecordId: _focusedRecordId,
+          onFocusedRecordHandled: _clearFocusedRecord,
+        ),
         const SettingsScreen(),
       ];
 

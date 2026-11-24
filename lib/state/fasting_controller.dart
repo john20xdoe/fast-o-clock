@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../models/app_settings.dart';
@@ -35,6 +36,17 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
   AppSettings _settings = const AppSettings();
   bool _isInitialized = false;
   Timer? _ticker;
+  int _historyVersion = 0;
+
+  late final ValueNotifier<DateTime> _clockTick;
+  late int _lastNotifiedDayKey;
+
+  int? _cachedStatsVersion;
+  String? _cachedStatsActiveId;
+  int? _cachedStatsDayKey;
+  int _cachedCurrentStreak = 0;
+  Duration _cachedAverageDuration = Duration.zero;
+  List<DayFastSummary> _cachedSevenDays = const [];
 
   FastingController({
     required DatabaseService databaseService,
@@ -47,14 +59,23 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
         _notificationService = notificationService,
         _backupService = backupService,
         _clockUtc = clockUtc ?? (() => DateTime.now().toUtc()) {
+    final initialNow = _clockUtc();
+    _clockTick = ValueNotifier<DateTime>(initialNow);
+    _lastNotifiedDayKey = _dayKeyFor(initialNow.toLocal());
     WidgetsBinding.instance.addObserver(this);
   }
+
+  static int _dayKeyFor(DateTime local) =>
+      local.year * 10000 + local.month * 100 + local.day;
 
   bool get isInitialized => _isInitialized;
   FastRecord? get activeFast => _activeFast;
   List<FastRecord> get history => _history;
   AppSettings get settings => _settings;
   DatabaseService get databaseService => _databaseService;
+  ValueListenable<DateTime> get clockTick => _clockTick;
+  int get historyVersion => _historyVersion;
+  int get localDayKey => _dayKeyFor(_clockUtc().toLocal());
 
   DateTime get nowUtc => _clockUtc();
 
@@ -91,14 +112,24 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _reloadRecords() async {
     _activeFast = await _databaseService.getActiveFast();
     _history = await _databaseService.getCompletedFasts();
+    _historyVersion++;
   }
 
   void _syncTicker() {
     _ticker?.cancel();
     _ticker = null;
+    final now = _clockUtc();
+    _clockTick.value = now;
+    _lastNotifiedDayKey = _dayKeyFor(now.toLocal());
     if (_activeFast != null) {
       _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-        notifyListeners();
+        final tickNow = _clockUtc();
+        _clockTick.value = tickNow;
+        final dayKey = _dayKeyFor(tickNow.toLocal());
+        if (dayKey != _lastNotifiedDayKey) {
+          _lastNotifiedDayKey = dayKey;
+          notifyListeners();
+        }
       });
     }
   }
@@ -106,8 +137,13 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      final now = _clockUtc();
+      final newDayKey = _dayKeyFor(now.toLocal());
+      final dayChanged = newDayKey != _lastNotifiedDayKey;
       _syncTicker();
-      notifyListeners();
+      if (dayChanged) {
+        notifyListeners();
+      }
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
       _ticker?.cancel();
@@ -118,6 +154,7 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void dispose() {
     _ticker?.cancel();
+    _clockTick.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -448,62 +485,80 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
   int get totalCompletedFasts => _history.length;
 
   Duration get averageFastDuration {
-    if (_history.isEmpty) return Duration.zero;
-    int totalMs = 0;
-    for (final r in _history) {
-      totalMs += (r.endTimeMs! - r.startTimeMs);
-    }
-    return Duration(milliseconds: totalMs ~/ _history.length);
+    _ensureStatsCache();
+    return _cachedAverageDuration;
   }
 
   /// Consecutive local calendar days (by end_time_ms) with >= 1 goal-met fast.
   int get currentStreak {
-    final qualifyingDays = <DateTime>{};
-    for (final r in _history) {
-      if (r.isGoalMet && r.endTimeLocal != null) {
-        final local = r.endTimeLocal!;
-        qualifyingDays.add(DateTime(local.year, local.month, local.day));
-      }
-    }
-    if (qualifyingDays.isEmpty) return 0;
-
-    final nowLocal = nowUtc.toLocal();
-    final today = DateTime(nowLocal.year, nowLocal.month, nowLocal.day);
-    final yesterday = DateTime(today.year, today.month, today.day - 1);
-
-    DateTime? cursor;
-    if (qualifyingDays.contains(today)) {
-      cursor = today;
-    } else if (qualifyingDays.contains(yesterday)) {
-      cursor = yesterday;
-    } else {
-      return 0;
-    }
-
-    int streak = 0;
-    while (qualifyingDays.contains(cursor)) {
-      streak++;
-      cursor = DateTime(cursor!.year, cursor.month, cursor.day - 1);
-    }
-    return streak;
+    _ensureStatsCache();
+    return _cachedCurrentStreak;
   }
 
   /// Last 7 local calendar days (today - 6 through today).
   List<DayFastSummary> get lastSevenDaysSummary {
-    final nowLocal = nowUtc.toLocal();
-    final today = DateTime(nowLocal.year, nowLocal.month, nowLocal.day);
+    _ensureStatsCache();
+    return _cachedSevenDays;
+  }
 
+  void _ensureStatsCache() {
+    final nowLocal = _clockUtc().toLocal();
+    final dayKey = _dayKeyFor(nowLocal);
+    final activeId = _activeFast?.id;
+    if (_cachedStatsVersion == _historyVersion &&
+        _cachedStatsActiveId == activeId &&
+        _cachedStatsDayKey == dayKey) {
+      return;
+    }
+
+    _cachedStatsVersion = _historyVersion;
+    _cachedStatsActiveId = activeId;
+    _cachedStatsDayKey = dayKey;
+
+    if (_history.isEmpty) {
+      _cachedAverageDuration = Duration.zero;
+      _cachedCurrentStreak = 0;
+    } else {
+      int totalMs = 0;
+      for (final r in _history) {
+        totalMs += (r.endTimeMs! - r.startTimeMs);
+      }
+      _cachedAverageDuration = Duration(milliseconds: totalMs ~/ _history.length);
+    }
+
+    final today = DateTime(nowLocal.year, nowLocal.month, nowLocal.day);
+    final yesterday = DateTime(today.year, today.month, today.day - 1);
+    final qualifyingDays = <DateTime>{};
     final dayStatusMap = <DateTime, DayFastStatus>{};
+
     for (final r in _history) {
       final endLocal = r.endTimeLocal;
       if (endLocal == null) continue;
       final dateKey = DateTime(endLocal.year, endLocal.month, endLocal.day);
       final existing = dayStatusMap[dateKey] ?? DayFastStatus.none;
       if (r.isGoalMet) {
+        qualifyingDays.add(dateKey);
         dayStatusMap[dateKey] = DayFastStatus.goalMet;
       } else if (existing != DayFastStatus.goalMet) {
         dayStatusMap[dateKey] = DayFastStatus.completedBelowGoal;
       }
+    }
+
+    if (qualifyingDays.isEmpty) {
+      _cachedCurrentStreak = 0;
+    } else {
+      DateTime? cursor;
+      if (qualifyingDays.contains(today)) {
+        cursor = today;
+      } else if (qualifyingDays.contains(yesterday)) {
+        cursor = yesterday;
+      }
+      int streak = 0;
+      while (cursor != null && qualifyingDays.contains(cursor)) {
+        streak++;
+        cursor = DateTime(cursor.year, cursor.month, cursor.day - 1);
+      }
+      _cachedCurrentStreak = streak;
     }
 
     if (_activeFast != null) {
@@ -523,6 +578,6 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
         ),
       );
     }
-    return summaries;
+    _cachedSevenDays = List.unmodifiable(summaries);
   }
 }

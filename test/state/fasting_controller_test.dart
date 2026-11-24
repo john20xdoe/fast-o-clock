@@ -3,6 +3,7 @@ import 'package:fast_oclock/services/database_service.dart';
 import 'package:fast_oclock/services/notification_service.dart';
 import 'package:fast_oclock/services/preferences_service.dart';
 import 'package:fast_oclock/state/fasting_controller.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -21,6 +22,7 @@ void main() {
   DateTime fakeNowUtc = DateTime.utc(2026, 11, 21, 12, 0);
 
   setUp(() async {
+    fakeNowUtc = DateTime.utc(2026, 11, 21, 12, 0);
     SharedPreferences.setMockInitialValues({'pref_is_onboarded': true});
     dbService = DatabaseService(overridePath: inMemoryDatabasePath);
     prefsService = PreferencesService();
@@ -119,6 +121,84 @@ void main() {
       expect(summary[5].status, DayFastStatus.completedBelowGoal);
       expect(summary[4].status, DayFastStatus.none);
       expect(summary[3].status, DayFastStatus.goalMet);
+    });
+
+    test('tracks historyVersion and refreshes clockTick immediately on startFast',
+        () async {
+      final initialVersion = controller.historyVersion;
+
+      // Advance clock while idle
+      fakeNowUtc = fakeNowUtc.add(const Duration(minutes: 15));
+      await controller.startFast();
+
+      expect(controller.clockTick.value, fakeNowUtc);
+      expect(controller.historyVersion, initialVersion + 1);
+
+      // Settings change does not increment historyVersion
+      await controller.updateThemeMode('light');
+      expect(controller.historyVersion, initialVersion + 1);
+
+      await controller.endActiveFast(
+        endTimeUtcMs: fakeNowUtc.add(const Duration(hours: 5)).millisecondsSinceEpoch,
+      );
+      expect(controller.historyVersion, initialVersion + 2);
+    });
+
+    testWidgets(
+        'clockTick ticks every second without notifyListeners until local midnight rollover',
+        (WidgetTester tester) async {
+      // Use a local time 1 second before midnight so we can test both same-day
+      // ticks and midnight rollover deterministically.
+      final localBeforeMidnight = DateTime(2026, 11, 21, 23, 59, 58);
+      fakeNowUtc = localBeforeMidnight.toUtc();
+
+      final localController = FastingController(
+        databaseService: dbService,
+        preferencesService: prefsService,
+        notificationService: notifService,
+        backupService: backupService,
+        clockUtc: () => fakeNowUtc,
+      );
+
+      await tester.runAsync(() async {
+        await localController.init();
+        await localController.startFast(
+          startTimeUtcMs: fakeNowUtc
+              .subtract(const Duration(hours: 2))
+              .millisecondsSinceEpoch,
+        );
+      });
+
+      int notifyCount = 0;
+      int tickCount = 0;
+      localController.addListener(() => notifyCount++);
+      localController.clockTick.addListener(() => tickCount++);
+
+      // Tick 1: 23:59:59 (same local day -> clockTick fires, notifyListeners does NOT)
+      fakeNowUtc = fakeNowUtc.add(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+      expect(tickCount, 1);
+      expect(notifyCount, 0);
+
+      // Tick 2: 00:00:00 next local day -> clockTick fires AND notifyListeners fires once
+      fakeNowUtc = fakeNowUtc.add(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+      expect(tickCount, 2);
+      expect(notifyCount, 1);
+
+      // Tick 3: 00:00:01 same new day -> notifyListeners stays 1
+      fakeNowUtc = fakeNowUtc.add(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+      expect(tickCount, 3);
+      expect(notifyCount, 1);
+
+      // Resume on another new day notifies once and updates clockTick
+      fakeNowUtc = fakeNowUtc.add(const Duration(days: 1));
+      localController.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      expect(localController.clockTick.value, fakeNowUtc);
+      expect(notifyCount, 2);
+
+      localController.dispose();
     });
   });
 }

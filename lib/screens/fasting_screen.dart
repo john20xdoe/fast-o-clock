@@ -100,20 +100,22 @@ class FastingScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final active = controller.activeFast;
     final protocol = controller.selectedProtocol;
-    final nowUtc = controller.nowUtc;
-
-    final isActive = active != null;
-    final elapsed = active?.elapsedDuration(nowUtc) ?? Duration.zero;
-    final remaining = active?.remainingDuration(nowUtc) ?? Duration.zero;
-    final overGoal = active?.overGoalDuration(nowUtc) ?? Duration.zero;
-    final progress = active?.progress(nowUtc) ?? 0.0;
-    final isGoalMet = active?.isGoalMetAt(nowUtc) ?? false;
     final showRemaining = controller.settings.showRemainingTime;
-
     final lastFast = controller.lastCompletedFast;
 
     return SafeArea(
-      child: LayoutBuilder(
+      child: ValueListenableBuilder<DateTime>(
+        valueListenable: controller.clockTick,
+        builder: (context, _, _) {
+          final nowUtc = controller.nowUtc;
+          final isActive = active != null;
+          final elapsed = active?.elapsedDuration(nowUtc) ?? Duration.zero;
+          final remaining = active?.remainingDuration(nowUtc) ?? Duration.zero;
+          final overGoal = active?.overGoalDuration(nowUtc) ?? Duration.zero;
+          final progress = active?.progress(nowUtc) ?? 0.0;
+          final isGoalMet = active?.isGoalMetAt(nowUtc) ?? false;
+
+          return LayoutBuilder(
         builder: (context, constraints) {
           final availableWidth = math.min(constraints.maxWidth, 560.0);
           final ringSize = (availableWidth * 0.75).clamp(220.0, 360.0);
@@ -664,6 +666,8 @@ class FastingScreen extends StatelessWidget {
               ),
             ),
           );
+        },
+      );
         },
       ),
     );
