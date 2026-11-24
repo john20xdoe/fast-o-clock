@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -270,15 +269,17 @@ class SettingsScreen extends StatelessWidget {
       final fileName = 'fast_oclock_backup_$dateStamp.json';
       final bytes = utf8.encode(jsonStr);
 
-      await Share.shareXFiles(
-        [
-          XFile.fromData(
-            bytes,
-            name: fileName,
-            mimeType: 'application/json',
-          ),
-        ],
-        subject: "Fast O'Clock Backup ($dateStamp)",
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(
+              bytes,
+              name: fileName,
+              mimeType: 'application/json',
+            ),
+          ],
+          subject: "Fast O'Clock Backup ($dateStamp)",
+        ),
       );
     } catch (e) {
       if (!context.mounted) return;
@@ -293,22 +294,13 @@ class SettingsScreen extends StatelessWidget {
     FastingController controller,
   ) async {
     try {
-      final picked = await FilePicker.platform.pickFiles(
+      final picked = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
-        withData: true,
       );
-      if (picked == null || picked.files.isEmpty) return;
+      if (picked.isEmpty) return;
 
-      final file = picked.files.first;
-      String jsonContent;
-      if (file.bytes != null) {
-        jsonContent = utf8.decode(file.bytes!);
-      } else if (file.path != null) {
-        jsonContent = await File(file.path!).readAsString();
-      } else {
-        return;
-      }
+      final jsonContent = await picked.first.xFile.readAsString();
 
       if (!context.mounted) return;
       final mode = await showDialog<BackupImportMode>(
