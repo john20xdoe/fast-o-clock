@@ -147,7 +147,7 @@ Computed from elapsed fasting hours (`elapsedHours = elapsed.inSeconds / 3600.0`
   - `completionPercentInRange`: `round(goalMetCountInRange / totalFastsInRange * 100)` (`0` when empty)
   - `averageDurationInRange`: mean `(endTimeMs - startTimeMs)` across fasts in range (`Duration.zero` when empty)
   - `longestDurationInRange`: max `(endTimeMs - startTimeMs)` across fasts in range (`Duration.zero` when empty)
-- **History List Scope**: Always displays full chronological history grouped by local end-date month, filtered only by the selected filter chip (`All`, `Goal Met`, `Ended Early`, `Notes`).
+- **Filter Counts & History List Scope**: `allCount`, `goalMetCount`, `endedEarlyCount`, `withNotesCount`, and month-grouped history cards are scoped to the selected range (`7D`, `30D`, `All`) and then filtered by the selected filter chip (`All`, `Goal Met`, `Ended Early`, `Notes`). `currentStreak` and `bestStreak` remain global (all-time).
 
 ### Chart Buckets (`ChartBarBucket`)
 - **`7D` / `30D` (Daily Single-Best-Fast Buckets)**:

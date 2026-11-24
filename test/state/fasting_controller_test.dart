@@ -138,16 +138,15 @@ void main() {
       await controller.updateThemeMode('light');
       expect(controller.historyVersion, initialVersion + 1);
 
-      await controller.endActiveFast(
-        endTimeUtcMs: fakeNowUtc.add(const Duration(hours: 5)).millisecondsSinceEpoch,
-      );
+      fakeNowUtc = fakeNowUtc.add(const Duration(hours: 5));
+      await controller.endActiveFast();
       expect(controller.historyVersion, initialVersion + 2);
     });
 
     testWidgets(
         'clockTick ticks every second without notifyListeners until local midnight rollover',
         (WidgetTester tester) async {
-      // Use a local time 1 second before midnight so we can test both same-day
+      // Use a local time 2 seconds before midnight so we can test both same-day
       // ticks and midnight rollover deterministically.
       final localBeforeMidnight = DateTime(2026, 11, 21, 23, 59, 58);
       fakeNowUtc = localBeforeMidnight.toUtc();
@@ -168,6 +167,10 @@ void main() {
               .millisecondsSinceEpoch,
         );
       });
+
+      // Re-bind the periodic timer inside the FakeAsync zone controlled by tester.pump.
+      localController.didChangeAppLifecycleState(AppLifecycleState.paused);
+      localController.didChangeAppLifecycleState(AppLifecycleState.resumed);
 
       int notifyCount = 0;
       int tickCount = 0;

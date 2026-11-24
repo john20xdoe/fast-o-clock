@@ -7,6 +7,7 @@ import '../models/app_settings.dart';
 import '../models/fast_protocol.dart';
 import '../models/fast_record.dart';
 import '../models/metabolic_stage.dart';
+import '../models/timeline_summary.dart';
 import '../services/backup_service.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
@@ -502,8 +503,8 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _ensureStatsCache() {
-    final nowLocal = _clockUtc().toLocal();
-    final dayKey = _dayKeyFor(nowLocal);
+    final now = _clockUtc();
+    final dayKey = _dayKeyFor(now.toLocal());
     final activeId = _activeFast?.id;
     if (_cachedStatsVersion == _historyVersion &&
         _cachedStatsActiveId == activeId &&
@@ -515,69 +516,21 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
     _cachedStatsActiveId = activeId;
     _cachedStatsDayKey = dayKey;
 
-    if (_history.isEmpty) {
-      _cachedAverageDuration = Duration.zero;
-      _cachedCurrentStreak = 0;
-    } else {
-      int totalMs = 0;
-      for (final r in _history) {
-        totalMs += (r.endTimeMs! - r.startTimeMs);
-      }
-      _cachedAverageDuration = Duration(milliseconds: totalMs ~/ _history.length);
-    }
+    final snapshot = TimelineSnapshot.build(
+      history: _history,
+      activeFast: _activeFast,
+      nowUtc: now,
+      defaultTargetMin: selectedProtocol.targetDurationMin,
+      range: TimelineRange.d7,
+      filter: TimelineFilter.all,
+    );
 
-    final today = DateTime(nowLocal.year, nowLocal.month, nowLocal.day);
-    final yesterday = DateTime(today.year, today.month, today.day - 1);
-    final qualifyingDays = <DateTime>{};
-    final dayStatusMap = <DateTime, DayFastStatus>{};
-
-    for (final r in _history) {
-      final endLocal = r.endTimeLocal;
-      if (endLocal == null) continue;
-      final dateKey = DateTime(endLocal.year, endLocal.month, endLocal.day);
-      final existing = dayStatusMap[dateKey] ?? DayFastStatus.none;
-      if (r.isGoalMet) {
-        qualifyingDays.add(dateKey);
-        dayStatusMap[dateKey] = DayFastStatus.goalMet;
-      } else if (existing != DayFastStatus.goalMet) {
-        dayStatusMap[dateKey] = DayFastStatus.completedBelowGoal;
-      }
-    }
-
-    if (qualifyingDays.isEmpty) {
-      _cachedCurrentStreak = 0;
-    } else {
-      DateTime? cursor;
-      if (qualifyingDays.contains(today)) {
-        cursor = today;
-      } else if (qualifyingDays.contains(yesterday)) {
-        cursor = yesterday;
-      }
-      int streak = 0;
-      while (cursor != null && qualifyingDays.contains(cursor)) {
-        streak++;
-        cursor = DateTime(cursor.year, cursor.month, cursor.day - 1);
-      }
-      _cachedCurrentStreak = streak;
-    }
-
-    if (_activeFast != null) {
-      final currentTodayStatus = dayStatusMap[today] ?? DayFastStatus.none;
-      if (currentTodayStatus == DayFastStatus.none) {
-        dayStatusMap[today] = DayFastStatus.active;
-      }
-    }
-
-    final summaries = <DayFastSummary>[];
-    for (int i = 6; i >= 0; i--) {
-      final normalized = DateTime(today.year, today.month, today.day - i);
-      summaries.add(
-        DayFastSummary(
-          localDate: normalized,
-          status: dayStatusMap[normalized] ?? DayFastStatus.none,
-        ),
-      );
-    }
-    _cachedSevenDays = List.unmodifiable(summaries);
+    _cachedAverageDuration = snapshot.allTimeAverageDuration;
+    _cachedCurrentStreak = snapshot.currentStreak;
+    _cachedSevenDays = List.unmodifiable(
+      snapshot.chartBuckets.map(
+        (b) => DayFastSummary(localDate: b.startDateLocal, status: b.status),
+      ),
+    );
   }
 }

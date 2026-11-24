@@ -10,11 +10,11 @@ class DurationBarChart extends StatelessWidget {
   static const Color goalMetColor = Color(0xFF00C853);
   static const Color endedEarlyColor = Color(0xFFFF8A00);
 
-  static const double _chartHeight = 148;
-  static const double _leftGutter = 32;
-  static const double _rightPadding = 8;
-  static const double _topPadding = 14;
-  static const double _bottomGutter = 32;
+  static const double _chartHeight = 124;
+  static const double _leftGutter = 0;
+  static const double _rightPadding = 0;
+  static const double _topPadding = 12;
+  static const double _bottomGutter = 28;
 
   final List<ChartBarBucket> buckets;
   final int defaultTargetMin;
@@ -141,7 +141,7 @@ class DurationBarChart extends StatelessWidget {
 
     if (bucket == null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         child: Row(
           children: [
             Expanded(
@@ -170,52 +170,56 @@ class DurationBarChart extends StatelessWidget {
       final extraStr =
           bucket.recordCount > 1 ? ' · +${bucket.recordCount - 1} more' : '';
 
-      return Material(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Material(
+          color:
+              theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
           borderRadius: BorderRadius.circular(10),
-          onTap: onEditRecord != null ? () => onEditRecord!(record) : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${bucket.readoutLabel} · $durStr / $targetStr · $statusStr$extraStr',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: onEditRecord != null ? () => onEditRecord!(record) : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      shape: BoxShape.circle,
                     ),
                   ),
-                ),
-                if (onEditRecord != null) ...[
-                  const SizedBox(width: 6),
-                  Icon(
-                    Icons.edit_outlined,
-                    size: 14,
-                    color: theme.colorScheme.primary,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${bucket.readoutLabel} · $durStr / $targetStr · $statusStr$extraStr',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 2),
-                  Text(
-                    'Edit',
-                    style: theme.textTheme.labelSmall?.copyWith(
+                  if (onEditRecord != null) ...[
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.edit_outlined,
+                      size: 14,
                       color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
                     ),
-                  ),
+                    const SizedBox(width: 2),
+                    Text(
+                      'Edit',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -243,34 +247,38 @@ class DurationBarChart extends StatelessWidget {
       message = '${bucket.readoutLabel} · No fast logged';
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: dotColor,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color:
+              theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: dotColor,
+                shape: BoxShape.circle,
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -338,19 +346,11 @@ class _DurationBarPainter extends CustomPainter {
       ..color = gridColor
       ..strokeWidth = 1;
 
-    // Horizontal Y-axis gridlines & labels (0h, mid, max)
+    // Horizontal Y-axis gridlines (0h, mid, max) across full width
     final yTicks = [0.0, maxChartHours / 2.0, maxChartHours];
     for (final h in yTicks) {
       final y = plotBottom - (h / maxChartHours) * plotHeight;
       canvas.drawLine(Offset(plotLeft, y), Offset(plotRight, y), gridPaint);
-      _paintText(
-        canvas,
-        '${h.round()}h',
-        textStyle.copyWith(color: labelColor, fontSize: 10),
-        Offset(0, y - 6),
-        maxWidth: plotLeft - 4,
-        align: TextAlign.right,
-      );
     }
 
     // Dashed reference line for Default protocol target
@@ -368,6 +368,155 @@ class _DurationBarPainter extends CustomPainter {
       x += dashW + dashGap;
     }
 
+    if (buckets.isNotEmpty) {
+      final slotWidth = plotWidth / buckets.length;
+      final barWidth = (slotWidth * 0.62).clamp(5.0, 26.0);
+      final radius = Radius.circular(math.min(6.0, barWidth / 2.0));
+
+      for (int i = 0; i < buckets.length; i++) {
+        final bucket = buckets[i];
+        final cx = plotLeft + slotWidth * (i + 0.5);
+        final isSelected = selectedIndex == i;
+
+        if (isSelected) {
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTWH(
+                plotLeft + slotWidth * i + 1,
+                plotTop,
+                math.max(2, slotWidth - 2),
+                plotHeight,
+              ),
+              const Radius.circular(6),
+            ),
+            Paint()..color = primaryColor.withValues(alpha: 0.10),
+          );
+        }
+
+        if (bucket.status == DayFastStatus.none) {
+          final dotRect = RRect.fromRectAndRadius(
+            Rect.fromCenter(
+              center: Offset(cx, plotBottom - 2),
+              width: math.min(barWidth, 6),
+              height: 4,
+            ),
+            const Radius.circular(2),
+          );
+          canvas.drawRRect(dotRect, Paint()..color = emptyDotColor);
+          if (isSelected) {
+            canvas.drawRRect(
+              dotRect,
+              Paint()
+                ..color = primaryColor
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.5,
+            );
+          }
+        } else {
+          final hours =
+              (bucket.duration.inMinutes / 60.0).clamp(0.4, maxChartHours);
+          final barHeight =
+              math.max(6.0, (hours / maxChartHours) * plotHeight);
+          final barRect = RRect.fromRectAndCorners(
+            Rect.fromLTWH(
+              cx - barWidth / 2,
+              plotBottom - barHeight,
+              barWidth,
+              barHeight,
+            ),
+            topLeft: radius,
+            topRight: radius,
+          );
+
+          if (bucket.status == DayFastStatus.active) {
+            canvas.drawRRect(
+              barRect,
+              Paint()..color = primaryColor.withValues(alpha: 0.18),
+            );
+            canvas.drawRRect(
+              barRect,
+              Paint()
+                ..color = primaryColor
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = isSelected ? 2.2 : 1.5,
+            );
+          } else {
+            final color = bucket.status == DayFastStatus.goalMet
+                ? DurationBarChart.goalMetColor
+                : DurationBarChart.endedEarlyColor;
+            canvas.drawRRect(barRect, Paint()..color = color);
+            if (isSelected) {
+              canvas.drawRRect(
+                barRect,
+                Paint()
+                  ..color = primaryColor
+                  ..style = PaintingStyle.stroke
+                  ..strokeWidth = 2,
+              );
+            }
+          }
+        }
+
+        // X-axis tick labels
+        if (_shouldPaintXLabel(i, buckets.length)) {
+          final labelStyle = textStyle.copyWith(
+            color: (bucket.isToday || isSelected) ? primaryColor : labelColor,
+            fontSize: range == TimelineRange.d7 ? 10 : 9.5,
+            fontWeight:
+                (bucket.isToday || isSelected) ? FontWeight.w700 : FontWeight.w500,
+            height: 1.15,
+          );
+          final labelWidth =
+              range == TimelineRange.d7 ? slotWidth : math.max(slotWidth, 42.0);
+          final left = (cx - labelWidth / 2)
+              .clamp(
+                4.0,
+                math.max(4.0, size.width - labelWidth - 4.0),
+              )
+              .toDouble();
+          _paintText(
+            canvas,
+            bucket.axisLabel,
+            labelStyle,
+            Offset(left, plotBottom + 4),
+            maxWidth: labelWidth,
+            align: TextAlign.center,
+          );
+        }
+      }
+    }
+
+    // Paint overlaid Y-axis badges inside left edge after bars so they stay legible.
+    for (final h in [maxChartHours / 2.0, maxChartHours]) {
+      final y = plotBottom - (h / maxChartHours) * plotHeight;
+      final yTp = TextPainter(
+        text: TextSpan(
+          text: '${h.round()}h',
+          style: textStyle.copyWith(
+            color: labelColor,
+            fontSize: 9.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final bg = RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          6,
+          math.max(0, y - yTp.height / 2 - 1),
+          yTp.width + 6,
+          yTp.height + 2,
+        ),
+        const Radius.circular(4),
+      );
+      canvas.drawRRect(
+        bg,
+        Paint()..color = surfaceColor.withValues(alpha: 0.78),
+      );
+      yTp.paint(canvas, Offset(bg.left + 3, bg.top + 1));
+    }
+
+    // Paint target pill after bars so tall rightmost bars never obscure it.
     final refText =
         'Default ${TimelineSnapshot.formatHoursShort(defaultTargetMin)}';
     final refTp = TextPainter(
@@ -383,7 +532,7 @@ class _DurationBarPainter extends CustomPainter {
     )..layout();
     final refBgRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(
-        plotRight - refTp.width - 8,
+        plotRight - refTp.width - 10,
         math.max(0, targetY - refTp.height - 4),
         refTp.width + 8,
         refTp.height + 2,
@@ -392,125 +541,9 @@ class _DurationBarPainter extends CustomPainter {
     );
     canvas.drawRRect(
       refBgRect,
-      Paint()..color = surfaceColor.withValues(alpha: 0.85),
+      Paint()..color = surfaceColor.withValues(alpha: 0.9),
     );
     refTp.paint(canvas, Offset(refBgRect.left + 4, refBgRect.top + 1));
-
-    if (buckets.isEmpty) return;
-
-    final slotWidth = plotWidth / buckets.length;
-    final barWidth = (slotWidth * 0.58).clamp(4.0, 22.0);
-    final radius = Radius.circular(math.min(6.0, barWidth / 2.0));
-
-    for (int i = 0; i < buckets.length; i++) {
-      final bucket = buckets[i];
-      final cx = plotLeft + slotWidth * (i + 0.5);
-      final isSelected = selectedIndex == i;
-
-      if (isSelected) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(
-              plotLeft + slotWidth * i + 1,
-              plotTop,
-              math.max(2, slotWidth - 2),
-              plotHeight,
-            ),
-            const Radius.circular(6),
-          ),
-          Paint()..color = primaryColor.withValues(alpha: 0.10),
-        );
-      }
-
-      if (bucket.status == DayFastStatus.none) {
-        final dotRect = RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: Offset(cx, plotBottom - 2),
-            width: math.min(barWidth, 6),
-            height: 4,
-          ),
-          const Radius.circular(2),
-        );
-        canvas.drawRRect(dotRect, Paint()..color = emptyDotColor);
-        if (isSelected) {
-          canvas.drawRRect(
-            dotRect,
-            Paint()
-              ..color = primaryColor
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.5,
-          );
-        }
-      } else {
-        final hours =
-            (bucket.duration.inMinutes / 60.0).clamp(0.4, maxChartHours);
-        final barHeight =
-            math.max(6.0, (hours / maxChartHours) * plotHeight);
-        final barRect = RRect.fromRectAndCorners(
-          Rect.fromLTWH(
-            cx - barWidth / 2,
-            plotBottom - barHeight,
-            barWidth,
-            barHeight,
-          ),
-          topLeft: radius,
-          topRight: radius,
-        );
-
-        if (bucket.status == DayFastStatus.active) {
-          canvas.drawRRect(
-            barRect,
-            Paint()..color = primaryColor.withValues(alpha: 0.18),
-          );
-          canvas.drawRRect(
-            barRect,
-            Paint()
-              ..color = primaryColor
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = isSelected ? 2.2 : 1.5,
-          );
-        } else {
-          final color = bucket.status == DayFastStatus.goalMet
-              ? DurationBarChart.goalMetColor
-              : DurationBarChart.endedEarlyColor;
-          canvas.drawRRect(barRect, Paint()..color = color);
-          if (isSelected) {
-            canvas.drawRRect(
-              barRect,
-              Paint()
-                ..color = primaryColor
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 2,
-            );
-          }
-        }
-      }
-
-      // X-axis tick labels
-      if (_shouldPaintXLabel(i, buckets.length)) {
-        final labelStyle = textStyle.copyWith(
-          color: (bucket.isToday || isSelected) ? primaryColor : labelColor,
-          fontSize: range == TimelineRange.d7 ? 10 : 9.5,
-          fontWeight:
-              (bucket.isToday || isSelected) ? FontWeight.w700 : FontWeight.w500,
-          height: 1.15,
-        );
-        final labelWidth =
-            range == TimelineRange.d7 ? slotWidth : math.max(slotWidth, 42.0);
-        final left = (cx - labelWidth / 2).clamp(
-          plotLeft - 4,
-          size.width - labelWidth,
-        );
-        _paintText(
-          canvas,
-          bucket.axisLabel,
-          labelStyle,
-          Offset(left, plotBottom + 5),
-          maxWidth: labelWidth,
-          align: TextAlign.center,
-        );
-      }
-    }
   }
 
   bool _shouldPaintXLabel(int index, int total) {

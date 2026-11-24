@@ -90,44 +90,44 @@ flowchart LR
 +---------------------------------------------+
 |  🔥 1d Streak (Best 12d)   ✅ 73% Met (22/30)|
 |  ⏱ 13h 39m Avg             🏆 18h 12m Best  |
-|---------------------------------------------|
-|  20h |                                      |
-|  16h | - - - - - - - - - - - - Default 16h  |
-|      |  █    ▄    █    █    ▆    ○    ·     |
-|      | W18  T19  F20  S21  S22  M23  T24    |
-|      | [Mon, Nov 23 · 16h 26m / 16h · Edit] |
++---------------------------------------------+
+|20h |                                        |  <- Full-width edge-to-edge chart
+|16h |- - - - - - - - - - - - - Default 16h - |
+|    |   █     ▄     █     █     ▆     ○    · |
+|    |  W 18  T 19  F 20  S 21  S 22  M 23 T24|
+|      [Mon, Nov 23 · 16h 26m / 16h · Edit]   |
 +---------------------------------------------+
 | (All 30) (Goal Met 22) (Early 8) (Notes 9)  |
 +---------------------------------------------+
 |  NOVEMBER 2026      24 fasts · 75% · 14h10m |
 | +-----------------------------------------+ |
-| |▎ Mon, Nov 23   [16:8] [Ketosis]   +26m  | |
-| |▎ 16h 26m   6:41 PM → 11:07 AM   😐 Okay | |
+| |▎ NOV 23 • MON • 11:07 AM   [16:8] +26m  | |
+| |▎ 16h 26m [Ketosis] from 6:41 PM 😐 Okay | |
 | |▎ ████████████████████████████████       | |
 | +-----------------------------------------+ |
 +---------------------------------------------+
 ```
 
 1. **Compact Header**: `Timeline` title left + `+ Log Fast` `FilledButton.tonalIcon` right (no floating action button overlapping bottom cards).
-2. **Range Selector (`7D` | `30D` | `All`)**: Scopes the `Goal Met %`, `Average`, `Longest` KPIs and the chart. Defaults to `30D` when `history.length > 7`, else `7D`. `Streak (Best Xd)` stays **global (all-time)** regardless of selected range.
-3. **2×2 KPI Strip + Interactive `DurationBarChart`**:
-   - Single `CustomPainter` wrapped in `RepaintBoundary` with dashed **`Default <Xh>`** reference line, Emerald (`#00C853`) Goal Met bars, Amber (`#FF8A00`) Ended Early bars, primary-outlined Active bar, and muted baseline dots for empty days.
+2. **Range Selector (`7D` | `30D` | `All`)**: Scopes the `Goal Met %`, `Average`, `Longest` KPIs, chart, filter chip counts, and history list. Defaults to `30D` when `history.length > 7`, else `7D`. `Streak (Best Xd)` stays **global (all-time)** regardless of selected range.
+3. **Compact 2×2 KPI Strip + Full-Width Edge-to-Edge `DurationBarChart`**:
+   - Chart sits in its own full-bleed section (`0` outer horizontal padding, `124dp` height) with overlaid left Y-axis badges (`10h`, `20h`), dashed **`Default <Xh>`** reference line painted above bars, Emerald (`#00C853`) Goal Met bars, Amber (`#FF8A00`) Ended Early bars, primary-outlined Active bar, and muted baseline dots for empty days.
    - `7D` / `30D` plot one bar per local calendar day using the day's best/longest single fast (without summing multi-fast days).
    - `All` plots up to 12 weekly-average buckets (read-only on tap).
-   - Tapping a daily bar shows an inline readout pill (`Mon, Nov 23 · 16h 26m / 16h · Goal Met`); tapping the readout opens `FastEditorSheet` directly.
-4. **Filter Chips & Empty-Filter State**:
-   - Horizontally scrollable `FilterChip` / `ChoiceChip` row (`All`, `Goal Met`, `Ended Early`, `Notes` with counts) in a `SliverToBoxAdapter`.
-   - When `history.isNotEmpty` and a filter matches 0 fasts, displays `"No fasts match this filter"` with a `"Show All"` reset action.
+   - Tapping a daily bar shows an inset inline readout pill (`Mon, Nov 23 · 16h 26m / 16h · Goal Met`); tapping the readout opens `FastEditorSheet` directly.
+4. **Filter Chips & Empty State**:
+   - Horizontally scrollable `ChoiceChip` row (`All`, `Goal Met`, `Ended Early`, `Notes` with range-scoped counts).
+   - When `history.isNotEmpty` and the active range or filter matches 0 fasts, displays `"No fasts in this period"` / `"No fasts match this filter"` with a `"Show All"` reset action.
 5. **Month-Grouped History List (`SliverList.builder`)**:
-   - Always shows full history (filtered only by the filter chips), grouped under compact month headers (`NOVEMBER 2026` + `count · % met · avg`).
+   - Displays range-scoped history filtered by the active chip, grouped under compact month headers (`NOVEMBER 2026` + `count · % met · avg`).
    - **Compact Record Row (~96–112dp)**:
      - 4dp left status rail (`#00C853` Goal Met / `#FF8A00` Ended Early).
-     - Top row: local end date (`Mon, Nov 23`, year only when != current year), protocol pill (`16:8`), metabolic stage reached (`Ketosis`, `Autophagy`, etc.), and goal delta (`+26m` / `-3h 17m`).
-     - Middle row: bold tabular duration (`16h 26m`), start → end time window, and **distinct mood icon + tint** (`Great`, `Okay`, `Challenging`, `Bad`).
+     - Top row: `MMM d • EEE` all-caps smaller + `•` + larger bold end time (`NOV 23 • MON • 11:07 AM`), protocol pill (`16:8`), and goal delta (`+26m` / `-3h 17m`).
+     - Middle row: bold tabular duration (`16h 26m`), metabolic stage pill (`Ketosis`, `Autophagy`, etc.), `from <start time>`, and **distinct mood icon + tint** (`Great`, `Okay`, `Challenging`, `Bad`).
      - Optional note preview (up to 2 lines, shown only when note exists).
      - Bottom 3dp goal progress hairline (`0%..100%`).
    - Scroll offset preserved via `PageStorageKey('timeline_scroll')`.
-   - `focusedRecordId` (from `FastingScreen` `"Last fast ended"` pill) auto-clears conflicting filter if needed, scrolls to the target card, pulses a brief highlight border, and clears via `onFocusedRecordHandled`.
+   - `focusedRecordId` (from `FastingScreen` `"Last fast ended"` pill) auto-clears conflicting filter/range if needed, scrolls to the target card, pulses a brief highlight border, and clears via `onFocusedRecordHandled`.
    - **Tap Card**: Opens `FastEditorSheet` (`editPast`) to edit or delete record (with confirmation dialog).
 
 ---

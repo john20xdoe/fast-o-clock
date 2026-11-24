@@ -60,6 +60,14 @@ void main() {
       expect(snap7d.goalMetCountInRange, 6);
       expect(snap7d.completionPercentInRange, 100);
       expect(snap7d.chartBuckets.length, 7);
+      // Filter counts & items are also scoped to 7D (1 month header + 6 records)
+      expect(snap7d.allCount, 6);
+      expect(snap7d.goalMetCount, 6);
+      expect(snap7d.items.length, 7);
+      expect(
+        snap7d.allTimeAverageDuration,
+        const Duration(hours: 16, minutes: 15),
+      );
     });
 
     test('computes bestStreak separately when currentStreak is broken', () {
@@ -204,6 +212,9 @@ void main() {
       expect(novHeader.goalMetPercent, 50);
 
       final firstRow = snapAll.items[1] as TimelineRecordItem;
+      expect(firstRow.dateStampLabel, 'NOV 23 • MON');
+      expect(firstRow.endTimeLabel, '11:07 AM');
+      expect(firstRow.startTimeLabel, '6:41 PM');
       expect(firstRow.deltaLabel, '+26m');
       expect(firstRow.metabolicStage.id, 'ketosis');
 

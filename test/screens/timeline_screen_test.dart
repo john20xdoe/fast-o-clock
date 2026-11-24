@@ -125,16 +125,18 @@ void main() {
     expect(find.text('Streak · Best 1d'), findsOneWidget);
     expect(find.text('50%'), findsOneWidget);
 
-    // Distinct mood icons rendered
+    // Distinct mood icons rendered & NOV 23 • MON • 10:00 AM format
     expect(find.byIcon(Icons.sentiment_very_satisfied_rounded), findsOneWidget);
     expect(
       find.byIcon(Icons.sentiment_very_dissatisfied_rounded),
       findsOneWidget,
     );
+    expect(find.textContaining('NOV 23 • MON'), findsOneWidget);
+    expect(find.textContaining('10:00 AM'), findsWidgets);
     await cleanupController(tester);
   });
 
-  testWidgets('range toggle scopes KPIs without hiding older history',
+  testWidgets('range toggle scopes KPIs, filter counts, and history list',
       (WidgetTester tester) async {
     await tester.runAsync(() async {
       // 1 recent fast (within 7d) + 1 older fast (12 days ago)
@@ -146,15 +148,36 @@ void main() {
     await tester.pumpWidget(buildHarness());
     await tester.pumpAndSettle();
 
-    // Default 7D when history <= 7: 1/1 = 100%
+    // Default 7D when history <= 7: 1/1 = 100%, older 10h 00m fast hidden in 7D
     expect(find.text('100%'), findsOneWidget);
-    // Older fast is still visible in the history list
-    expect(find.text('10h 00m'), findsWidgets);
+    expect(find.text('All (1)'), findsOneWidget);
+    expect(find.text('10h 00m'), findsNothing);
 
-    // Switch to 30D: 1/2 = 50%
+    // Switch to 30D: 1/2 = 50%, older 10h 00m fast is now shown
     await tester.tap(find.text('30D'));
     await tester.pumpAndSettle();
     expect(find.text('50%'), findsOneWidget);
+    expect(find.text('All (2)'), findsOneWidget);
+    expect(find.text('10h 00m'), findsWidgets);
+    await cleanupController(tester);
+  });
+
+  testWidgets('empty 7D period offers Show All that switches to All range',
+      (WidgetTester tester) async {
+    await tester.runAsync(() async {
+      await seedFast(id: 'older_only', daysAgo: 15, durationHours: 16);
+      await controller.init();
+    });
+
+    await tester.pumpWidget(buildHarness());
+    await tester.pumpAndSettle();
+
+    expect(find.text('No fasts in this period'), findsOneWidget);
+    await tester.tap(find.text('Show All'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No fasts in this period'), findsNothing);
+    expect(find.text('16h 00m'), findsWidgets);
     await cleanupController(tester);
   });
 
@@ -191,8 +214,14 @@ void main() {
       );
     });
 
+    // Re-bind the periodic timer inside the FakeAsync zone controlled by tester.pump.
+    controller.didChangeAppLifecycleState(AppLifecycleState.paused);
+    controller.didChangeAppLifecycleState(AppLifecycleState.resumed);
+
     int controllerNotifications = 0;
+    int tickCount = 0;
     controller.addListener(() => controllerNotifications++);
+    controller.clockTick.addListener(() => tickCount++);
 
     await tester.pumpWidget(buildHarness());
     await tester.pump();
@@ -202,6 +231,7 @@ void main() {
     fakeNowUtc = fakeNowUtc.add(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
 
+    expect(tickCount, 2);
     expect(controllerNotifications, 0);
     await cleanupController(tester);
   });

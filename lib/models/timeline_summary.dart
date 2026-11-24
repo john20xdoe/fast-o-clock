@@ -17,7 +17,6 @@ class ChartBarBucket {
   final String axisLabel;
   final String readoutLabel;
   final Duration duration;
-  final int? targetDurationMin;
   final DayFastStatus status;
   final FastRecord? primaryRecord;
   final int recordCount;
@@ -31,7 +30,6 @@ class ChartBarBucket {
     required this.axisLabel,
     required this.readoutLabel,
     required this.duration,
-    required this.targetDurationMin,
     required this.status,
     required this.primaryRecord,
     required this.recordCount,
@@ -65,12 +63,10 @@ class TimelineRecordItem extends TimelineListItem {
   final FastRecord record;
   final FastProtocol protocol;
   final MetabolicStage metabolicStage;
-  final DateTime startLocal;
-  final DateTime endLocal;
-  final Duration elapsed;
-  final String dateLabel;
+  final String dateStampLabel;
+  final String endTimeLabel;
+  final String startTimeLabel;
   final String durationLabel;
-  final String windowLabel;
   final String deltaLabel;
   final double progressRatio;
   final bool isGoalMet;
@@ -81,12 +77,10 @@ class TimelineRecordItem extends TimelineListItem {
     required this.record,
     required this.protocol,
     required this.metabolicStage,
-    required this.startLocal,
-    required this.endLocal,
-    required this.elapsed,
-    required this.dateLabel,
+    required this.dateStampLabel,
+    required this.endTimeLabel,
+    required this.startTimeLabel,
     required this.durationLabel,
-    required this.windowLabel,
     required this.deltaLabel,
     required this.progressRatio,
     required this.isGoalMet,
@@ -97,8 +91,9 @@ class TimelineRecordItem extends TimelineListItem {
 
 class TimelineSnapshot {
   static final DateFormat _dayHeaderThisYearFmt = DateFormat('EEE, MMM d');
-  static final DateFormat _dayHeaderOtherYearFmt =
-      DateFormat('EEE, MMM d, yyyy');
+  static final DateFormat _panelDateThisYearFmt = DateFormat('MMM d • EEE');
+  static final DateFormat _panelDateOtherYearFmt =
+      DateFormat('MMM d yyyy • EEE');
   static final DateFormat _shortTimeFmt = DateFormat('h:mm a');
   static final DateFormat _monthHeaderFmt = DateFormat('MMMM yyyy');
   static final DateFormat _monthDayShortFmt = DateFormat('MMM d');
@@ -113,6 +108,7 @@ class TimelineSnapshot {
   final int completionPercentInRange;
   final Duration averageDurationInRange;
   final Duration longestDurationInRange;
+  final Duration allTimeAverageDuration;
 
   final int allCount;
   final int goalMetCount;
@@ -134,6 +130,7 @@ class TimelineSnapshot {
     required this.completionPercentInRange,
     required this.averageDurationInRange,
     required this.longestDurationInRange,
+    required this.allTimeAverageDuration,
     required this.allCount,
     required this.goalMetCount,
     required this.endedEarlyCount,
@@ -200,6 +197,9 @@ class TimelineSnapshot {
     final dayBestMap =
         <DateTime, ({FastRecord best, int count, int goalMetCount})>{};
 
+    int allTimeCount = 0;
+    int allTimeTotalMs = 0;
+
     int allCount = 0;
     int goalMetCount = 0;
     int endedEarlyCount = 0;
@@ -209,6 +209,12 @@ class TimelineSnapshot {
     int rangeGoalMetCount = 0;
     int rangeTotalMs = 0;
     int rangeLongestMs = 0;
+
+    const maxWeeks = 12;
+    final weekTotalMs = List<int>.filled(maxWeeks, 0);
+    final weekCounts = List<int>.filled(maxWeeks, 0);
+    final weekGoalMet = List<int>.filled(maxWeeks, 0);
+    final todayUtcDay = DateTime.utc(today.year, today.month, today.day);
 
     // Month buckets preserve insertion order (descending by endTimeMs).
     final monthOrder = <(int, int)>[];
@@ -224,22 +230,20 @@ class TimelineSnapshot {
       final isGoalMet = record.isGoalMet;
       final hasNote = record.note != null && record.note!.trim().isNotEmpty;
 
-      allCount++;
+      // Global all-time accumulators (unclipped by range selector).
+      allTimeCount++;
+      allTimeTotalMs += elapsedMs;
       if (isGoalMet) {
-        goalMetCount++;
         qualifyingDays.add(endDay);
-      } else {
-        endedEarlyCount++;
-      }
-      if (hasNote) {
-        withNotesCount++;
       }
 
-      if (rangeStartDay == null || !endDay.isBefore(rangeStartDay)) {
-        rangeTotalCount++;
-        if (isGoalMet) rangeGoalMetCount++;
-        rangeTotalMs += elapsedMs;
-        if (elapsedMs > rangeLongestMs) rangeLongestMs = elapsedMs;
+      final endUtcDay = DateTime.utc(endDay.year, endDay.month, endDay.day);
+      final daysAgo = todayUtcDay.difference(endUtcDay).inDays;
+      if (daysAgo >= 0 && daysAgo < maxWeeks * 7) {
+        final weekIdx = daysAgo ~/ 7;
+        weekTotalMs[weekIdx] += elapsedMs;
+        weekCounts[weekIdx]++;
+        if (isGoalMet) weekGoalMet[weekIdx]++;
       }
 
       // Single-best-fast selection per calendar day for daily chart buckets.
@@ -263,6 +267,24 @@ class TimelineSnapshot {
         );
       }
 
+      // Scope filter counts, KPIs, and history list to the selected range.
+      final inRange = rangeStartDay == null || !endDay.isBefore(rangeStartDay);
+      if (!inRange) continue;
+
+      allCount++;
+      rangeTotalCount++;
+      if (isGoalMet) {
+        goalMetCount++;
+        rangeGoalMetCount++;
+      } else {
+        endedEarlyCount++;
+      }
+      if (hasNote) {
+        withNotesCount++;
+      }
+      rangeTotalMs += elapsedMs;
+      if (elapsedMs > rangeLongestMs) rangeLongestMs = elapsedMs;
+
       final matchesFilter = switch (filter) {
         TimelineFilter.all => true,
         TimelineFilter.goalMet => isGoalMet,
@@ -276,12 +298,13 @@ class TimelineSnapshot {
         customDurationMin: record.targetDurationMin,
       );
       final stage = MetabolicStage.forElapsedDuration(elapsed);
-      final dateLabel = endLocal.year == nowLocal.year
-          ? _dayHeaderThisYearFmt.format(endLocal)
-          : _dayHeaderOtherYearFmt.format(endLocal);
+      final dateStampLabel = (endLocal.year == nowLocal.year
+              ? _panelDateThisYearFmt.format(endLocal)
+              : _panelDateOtherYearFmt.format(endLocal))
+          .toUpperCase();
+      final endTimeLabel = _shortTimeFmt.format(endLocal);
+      final startTimeLabel = _shortTimeFmt.format(startLocal);
       final durationLabel = formatDuration(elapsed);
-      final windowLabel =
-          '${_shortTimeFmt.format(startLocal)} → ${_shortTimeFmt.format(endLocal)}';
       final deltaLabel = formatDelta(elapsed, record.targetDurationMin);
       final targetMs = record.targetDurationMin * 60000.0;
       final progressRatio =
@@ -290,19 +313,17 @@ class TimelineSnapshot {
       final moodLabel = record.mood != null ? ', mood ${record.mood}' : '';
       final noteLabel = hasNote ? ', note: ${record.note!.trim()}' : '';
       final semanticLabel =
-          '$dateLabel, ${protocol.label}, ${isGoalMet ? 'Goal Met' : 'Ended Early'}, '
-          '$durationLabel ($deltaLabel), ${shortStageLabel(stage)}, $windowLabel$moodLabel$noteLabel';
+          '$dateStampLabel, $endTimeLabel, ${protocol.label}, ${isGoalMet ? 'Goal Met' : 'Ended Early'}, '
+          '$durationLabel ($deltaLabel), ${shortStageLabel(stage)}, started $startTimeLabel$moodLabel$noteLabel';
 
       final rowItem = TimelineRecordItem(
         record: record,
         protocol: protocol,
         metabolicStage: stage,
-        startLocal: startLocal,
-        endLocal: endLocal,
-        elapsed: elapsed,
-        dateLabel: dateLabel,
+        dateStampLabel: dateStampLabel,
+        endTimeLabel: endTimeLabel,
+        startTimeLabel: startTimeLabel,
         durationLabel: durationLabel,
-        windowLabel: windowLabel,
         deltaLabel: deltaLabel,
         progressRatio: progressRatio,
         isGoalMet: isGoalMet,
@@ -400,7 +421,9 @@ class TimelineSnapshot {
         ),
       TimelineRange.all => _buildWeeklyBuckets(
           today: today,
-          sortedRecords: sorted,
+          weekTotalMs: weekTotalMs,
+          weekCounts: weekCounts,
+          weekGoalMet: weekGoalMet,
           defaultTargetMin: defaultTargetMin,
         ),
     };
@@ -420,6 +443,9 @@ class TimelineSnapshot {
         ? Duration.zero
         : Duration(milliseconds: rangeTotalMs ~/ rangeTotalCount);
     final longestDurationInRange = Duration(milliseconds: rangeLongestMs);
+    final allTimeAverageDuration = allTimeCount == 0
+        ? Duration.zero
+        : Duration(milliseconds: allTimeTotalMs ~/ allTimeCount);
 
     return TimelineSnapshot(
       currentStreak: currentStreak,
@@ -430,6 +456,7 @@ class TimelineSnapshot {
       completionPercentInRange: completionPercentInRange,
       averageDurationInRange: averageDurationInRange,
       longestDurationInRange: longestDurationInRange,
+      allTimeAverageDuration: allTimeAverageDuration,
       allCount: allCount,
       goalMetCount: goalMetCount,
       endedEarlyCount: endedEarlyCount,
@@ -469,7 +496,6 @@ class TimelineSnapshot {
             axisLabel: axisLabel,
             readoutLabel: readoutLabel,
             duration: best.elapsedDuration(),
-            targetDurationMin: best.targetDurationMin,
             status: best.isGoalMet
                 ? DayFastStatus.goalMet
                 : DayFastStatus.completedBelowGoal,
@@ -488,7 +514,6 @@ class TimelineSnapshot {
             axisLabel: axisLabel,
             readoutLabel: 'Today',
             duration: activeFast.elapsedDuration(nowUtc),
-            targetDurationMin: activeFast.targetDurationMin,
             status: DayFastStatus.active,
             primaryRecord: null,
             recordCount: 0,
@@ -505,7 +530,6 @@ class TimelineSnapshot {
             axisLabel: axisLabel,
             readoutLabel: readoutLabel,
             duration: Duration.zero,
-            targetDurationMin: null,
             status: DayFastStatus.none,
             primaryRecord: null,
             recordCount: 0,
@@ -521,7 +545,9 @@ class TimelineSnapshot {
 
   static List<ChartBarBucket> _buildWeeklyBuckets({
     required DateTime today,
-    required List<FastRecord> sortedRecords,
+    required List<int> weekTotalMs,
+    required List<int> weekCounts,
+    required List<int> weekGoalMet,
     required int defaultTargetMin,
   }) {
     const maxWeeks = 12;
@@ -532,19 +558,9 @@ class TimelineSnapshot {
       final weekStart =
           DateTime(weekEnd.year, weekEnd.month, weekEnd.day - 6);
 
-      int totalMs = 0;
-      int count = 0;
-      int goalMet = 0;
-
-      for (final record in sortedRecords) {
-        final endLocal = record.endTimeLocal!;
-        final endDay = DateTime(endLocal.year, endLocal.month, endLocal.day);
-        if (!endDay.isBefore(weekStart) && !endDay.isAfter(weekEnd)) {
-          totalMs += math.max(0, record.endTimeMs! - record.startTimeMs);
-          count++;
-          if (record.isGoalMet) goalMet++;
-        }
-      }
+      final count = weekCounts[w];
+      final totalMs = weekTotalMs[w];
+      final goalMet = weekGoalMet[w];
 
       final avgDuration = count == 0
           ? Duration.zero
@@ -571,7 +587,6 @@ class TimelineSnapshot {
           axisLabel: startStr,
           readoutLabel: '$startStr–$endStr',
           duration: avgDuration,
-          targetDurationMin: null,
           status: status,
           primaryRecord: null,
           recordCount: count,

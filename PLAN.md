@@ -60,6 +60,19 @@ Focused plan for upgrading Tab 2 (`TimelineScreen`) and decoupling 1 Hz timer re
 
 ---
 
+## Validation Feedback — Round 2 (Implemented)
+- [x] **Edge-to-Edge Full-Width Chart**:
+  - Split `DurationBarChart` out of the padded KPI `Card` into its own full-bleed `SliverToBoxAdapter` (`0` horizontal outer padding, full width up to `640dp`) so bars span screen width and are easier to tap.
+  - Overlay subtle Y-axis labels inside the left edge (`_leftGutter = 0`, `_rightPadding = 0`) and keep `16dp` horizontal padding only on the readout pill/legend below the bars.
+  - Tighten header, KPI card, filter row, and list horizontal padding from `20dp` to `16dp`.
+- [x] **Range-Scoped Filter Counts & History List (`7D` / `30D` / `All`)**:
+  - Scope `allCount`, `goalMetCount`, `endedEarlyCount`, `withNotesCount`, and `items` (month headers + history cards) to the selected range (`7D` / `30D` / `All`) while keeping `currentStreak` and `bestStreak` global (all-time).
+  - Show a `"Show All"` reset when range or filter matches 0 fasts, and auto-switch range to `TimelineRange.all` on `focusedRecordId` jump if target falls outside the active window.
+- [x] **Fasting Record Row Date-Time Format**:
+  - Revise each fasting record row's date-time display from `"Mon, Nov 23"` to match `FastingScreen`'s panel style (`MMM d • EEE` all-caps smaller) in the sequence `NOV 25 • WED • 12:11 PM`, where `NOV 25 • WED` is all-caps and smaller and `12:11 PM` is larger/bolder for readability.
+
+---
+
 ## Deferred (Future)
 - **Day-Based / Recurring Fasting Patterns** (ADF, 1 day/week, 5-day) — deferred pending streak calculation analysis.
 - **Google Drive Backup** — deferred; focus on local file backup improvements first.
