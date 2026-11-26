@@ -103,11 +103,15 @@ Focused plan for upgrading Tab 2 (`TimelineScreen`) and decoupling 1 Hz timer re
   - Add `Clean` | `Modified` toggle (default `Clean`) with calorie-deficit helper copy (*"Clean: 0 kcal · Modified: low-cal aid to sustain your calorie deficit"*).
   - Add conditional `Early-End Reason` chips (`Hungry`, `Social`, `Dizzy / Unwell`, `Other`) shown only when `actualDuration < targetDurationMin`.
   - Collapse `Optional Note` behind `+ Add note` when empty.
-- **`lib/screens/fasting_screen.dart`**: Update `FastEditorMode.completeActive` handler to pass `result.isClean` and `result.endReason` to `controller.endActiveFast(...)`.
+- **`lib/screens/fasting_screen.dart`**:
+  - Update `FastEditorMode.completeActive` handler to pass `result.isClean` and `result.endReason` to `controller.endActiveFast(...)`.
+  - Fix idle `"Your time to eat"` timer ring: when a prior fast exists, `<24h` pattern is selected, and `elapsedSinceLastFastEnded < eatingWindow`, display remaining eating window (`(24h - targetFastDuration) - elapsedSinceLastFastEnded`, e.g., `9h`), `Until: <time>` when window ends, and hide `Goal:`. When `history.isEmpty`, `targetDurationMin >= 1440`, or the eating window has ended (`remaining <= 0`), revert back to showing `Goal:`.
+- **`lib/services/notification_service.dart` & `android/app/src/main/AndroidManifest.xml`**:
+  - Fix non-firing scheduled notifications (`Fasting Goal Reached` & `Eating Window Ending`): add required `flutter_local_notifications` `ScheduledNotificationReceiver` / `ScheduledNotificationBootReceiver` + `RECEIVE_BOOT_COMPLETED` (and `SCHEDULE_EXACT_ALARM`) in `AndroidManifest.xml`, check `android.canScheduleExactNotifications()` with fallback to `AndroidScheduleMode.inexactAllowWhileIdle` (so Android 14+ never throws `exact_alarms_not_permitted`), log scheduling failures without failing `startFast`/`endActiveFast` DB writes, and ensure `requestPermissions()` is invoked before scheduling.
 - **`lib/screens/settings_screen.dart`**: Add `Typical Bedtime` time picker (with clear option) under `Fasting Preferences`.
 
 ### Stage 4 — Tests & Verification
-- Update `test/models/timeline_summary_test.dart`, `test/screens/timeline_screen_test.dart`, `test/state/fasting_controller_test.dart`, and `test/widgets/fast_editor_sheet_test.dart`.
+- Update `test/models/timeline_summary_test.dart`, `test/screens/timeline_screen_test.dart`, `test/screens/fasting_screen_test.dart` (idle eating-window ring + hidden `Goal:`), `test/state/fasting_controller_test.dart`, and `test/widgets/fast_editor_sheet_test.dart`.
 - Add SQLite `v1` → `v2` upgrade and `BackupService` `v1`/`v2` JSON import tests (`test/services/database_service_test.dart`, `test/services/backup_service_test.dart`).
 
 ---
