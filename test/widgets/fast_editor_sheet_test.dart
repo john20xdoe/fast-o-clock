@@ -51,7 +51,7 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('How did this fasting feel?'), findsNothing);
-        expect(find.text('Optional Note'), findsNothing);
+        expect(find.text('Add note'), findsNothing);
 
         final saveButton = tester.widget<FilledButton>(
           find.widgetWithText(FilledButton, 'Save to Timeline'),
@@ -86,7 +86,7 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('How did this fasting feel?'), findsNothing);
-        expect(find.text('Optional Note'), findsNothing);
+        expect(find.text('Add note'), findsNothing);
         final disabledSave = tester.widget<FilledButton>(
           find.widgetWithText(FilledButton, 'Save'),
         );
@@ -118,6 +118,65 @@ void main() {
           find.widgetWithText(FilledButton, 'Save'),
         );
         expect(enabledSave.onPressed, isNotNull);
+      },
+    );
+
+    testWidgets(
+      'shows Clean/Modified toggle, conditional Early-End Reason, target chips, and collapsed note',
+      (tester) async {
+        await tester.pumpWidget(
+          wrapSheet(
+            FastEditorSheet(
+              mode: FastEditorMode.addPast,
+              databaseService: dbService,
+              initialProtocolId: '16_8',
+              initialTargetDurationMin: 960,
+              initialStartTimeUtcMs: nowMs - 10 * 3600000,
+              initialEndTimeUtcMs: nowMs,
+              clockUtc: () => fixedNowUtc,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Target Hours'), findsOneWidget);
+        expect(find.text('16h'), findsOneWidget);
+        expect(find.text('Clean'), findsOneWidget);
+        expect(find.text('Modified'), findsOneWidget);
+        expect(find.text('Early-End Reason'), findsOneWidget);
+        expect(find.text('Hungry'), findsOneWidget);
+
+        // Collapsed note expands on tap
+        expect(find.text('Optional Note'), findsNothing);
+        await tester.ensureVisible(find.text('Add note'));
+        await tester.tap(find.text('Add note'));
+        await tester.pumpAndSettle();
+        expect(find.text('Optional Note'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'addPast defaults to blank Start and End times with Save disabled and no overlap error',
+      (tester) async {
+        await tester.pumpWidget(
+          wrapSheet(
+            FastEditorSheet(
+              mode: FastEditorMode.addPast,
+              databaseService: dbService,
+              initialProtocolId: '16_8',
+              initialTargetDurationMin: 960,
+              clockUtc: () => fixedNowUtc,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Select start time'), findsOneWidget);
+        expect(find.text('Select end time'), findsOneWidget);
+        final saveButton = tester.widget<FilledButton>(
+          find.widgetWithText(FilledButton, 'Save'),
+        );
+        expect(saveButton.onPressed, isNull);
       },
     );
   });

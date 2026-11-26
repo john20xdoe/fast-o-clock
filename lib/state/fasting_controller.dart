@@ -210,6 +210,14 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  Future<void> updateBedtime(int? minutesOfDay) async {
+    _settings = minutesOfDay == null
+        ? _settings.copyWith(clearBedtime: true)
+        : _settings.copyWith(bedtimeMinutesOfDay: minutesOfDay);
+    await _preferencesService.saveSettings(_settings);
+    notifyListeners();
+  }
+
   Future<void> toggleShowRemainingTime() async {
     _settings = _settings.copyWith(
       showRemainingTime: !_settings.showRemainingTime,
@@ -327,6 +335,8 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
     int? targetDurationMin,
     String? note,
     String? mood,
+    bool isClean = true,
+    String? endReason,
   }) async {
     final active = _activeFast;
     if (active == null) return;
@@ -341,6 +351,9 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
       clearNote: note == null || note.trim().isEmpty,
       mood: mood,
       clearMood: mood == null,
+      isClean: isClean,
+      endReason: endReason,
+      clearEndReason: endReason == null,
       updatedAtMs: nowMs,
     );
 
@@ -369,6 +382,8 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
     required int endTimeUtcMs,
     String? note,
     String? mood,
+    bool isClean = true,
+    String? endReason,
   }) async {
     final nowMs = nowUtc.millisecondsSinceEpoch;
     final record = FastRecord(
@@ -379,6 +394,8 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
       targetDurationMin: targetDurationMin,
       note: (note != null && note.trim().isNotEmpty) ? note.trim() : null,
       mood: mood,
+      isClean: isClean,
+      endReason: endReason,
       createdAtMs: nowMs,
       updatedAtMs: nowMs,
     );
@@ -396,6 +413,8 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
     required int endTimeUtcMs,
     String? note,
     String? mood,
+    bool isClean = true,
+    String? endReason,
   }) async {
     final existing = await _databaseService.getRecordById(id);
     if (existing == null) return;
@@ -409,6 +428,9 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
       clearNote: note == null || note.trim().isEmpty,
       mood: mood,
       clearMood: mood == null,
+      isClean: isClean,
+      endReason: endReason,
+      clearEndReason: endReason == null,
       updatedAtMs: nowMs,
     );
 
@@ -520,16 +542,15 @@ class FastingController extends ChangeNotifier with WidgetsBindingObserver {
       history: _history,
       activeFast: _activeFast,
       nowUtc: now,
-      defaultTargetMin: selectedProtocol.targetDurationMin,
-      range: TimelineRange.d7,
-      filter: TimelineFilter.all,
     );
 
     _cachedAverageDuration = snapshot.allTimeAverageDuration;
     _cachedCurrentStreak = snapshot.currentStreak;
     _cachedSevenDays = List.unmodifiable(
-      snapshot.chartBuckets.map(
-        (b) => DayFastSummary(localDate: b.startDateLocal, status: b.status),
+      TimelineSnapshot.buildLastSevenDays(
+        history: _history,
+        activeFast: _activeFast,
+        nowUtc: now,
       ),
     );
   }

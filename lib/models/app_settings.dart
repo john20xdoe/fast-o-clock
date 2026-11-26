@@ -8,6 +8,7 @@ class AppSettings {
   final bool notifyGoalReached;
   final bool notifyEatingWindow;
   final bool showRemainingTime;
+  final int? bedtimeMinutesOfDay;
 
   const AppSettings({
     this.isOnboarded = false,
@@ -17,6 +18,7 @@ class AppSettings {
     this.notifyGoalReached = true,
     this.notifyEatingWindow = false,
     this.showRemainingTime = false,
+    this.bedtimeMinutesOfDay,
   });
 
   ThemeMode get flutterThemeMode {
@@ -39,6 +41,8 @@ class AppSettings {
     bool? notifyGoalReached,
     bool? notifyEatingWindow,
     bool? showRemainingTime,
+    int? bedtimeMinutesOfDay,
+    bool clearBedtime = false,
   }) {
     return AppSettings(
       isOnboarded: isOnboarded ?? this.isOnboarded,
@@ -48,6 +52,9 @@ class AppSettings {
       notifyGoalReached: notifyGoalReached ?? this.notifyGoalReached,
       notifyEatingWindow: notifyEatingWindow ?? this.notifyEatingWindow,
       showRemainingTime: showRemainingTime ?? this.showRemainingTime,
+      bedtimeMinutesOfDay: clearBedtime
+          ? null
+          : (bedtimeMinutesOfDay ?? this.bedtimeMinutesOfDay),
     );
   }
 
@@ -58,6 +65,7 @@ class AppSettings {
         'notifyGoalReached': notifyGoalReached,
         'notifyEatingWindow': notifyEatingWindow,
         'showRemainingTime': showRemainingTime,
+        'bedtimeMinutesOfDay': bedtimeMinutesOfDay,
       };
 
   factory AppSettings.fromBackupJson(
@@ -72,6 +80,7 @@ class AppSettings {
       notifyGoalReached: (json['notifyGoalReached'] as bool?) ?? true,
       notifyEatingWindow: (json['notifyEatingWindow'] as bool?) ?? false,
       showRemainingTime: (json['showRemainingTime'] as bool?) ?? false,
+      bedtimeMinutesOfDay: (json['bedtimeMinutesOfDay'] as num?)?.toInt(),
     );
   }
 }

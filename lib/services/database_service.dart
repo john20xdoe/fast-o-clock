@@ -16,10 +16,10 @@ class FastValidationException implements Exception {
 class DatabaseService {
   static const int minCompletedFastDurationMs = 4 * 3600000;
   static const String minCompletedFastDurationError =
-      'You did not reach at least 4 hours to begin burning glycogen. This cannot be record as fasting.';
+      'You did not reach at least 4 hours to begin burning glycogen. This is not enough for fasting.';
 
   static const String _dbName = 'fast_oclock.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   Database? _db;
   final String? _overridePath;
@@ -33,6 +33,7 @@ class DatabaseService {
       dbPath,
       version: _dbVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
     return _db!;
   }
@@ -47,6 +48,8 @@ class DatabaseService {
         target_duration_min INTEGER NOT NULL,
         note TEXT,
         mood TEXT,
+        is_clean INTEGER NOT NULL DEFAULT 1,
+        end_reason TEXT,
         created_at_ms INTEGER NOT NULL,
         updated_at_ms INTEGER NOT NULL
       )
@@ -78,6 +81,21 @@ class DatabaseService {
     await db.execute(
       'CREATE INDEX idx_fast_records_end ON fast_records (end_time_ms DESC)',
     );
+  }
+
+  static Future<void> _onUpgrade(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
+    if (oldVersion < 2) {
+      await db.execute(
+        'ALTER TABLE fast_records ADD COLUMN is_clean INTEGER NOT NULL DEFAULT 1',
+      );
+      await db.execute(
+        'ALTER TABLE fast_records ADD COLUMN end_reason TEXT',
+      );
+    }
   }
 
   Future<void> close() async {

@@ -51,21 +51,27 @@ class FastingScreen extends StatelessWidget {
     return '$hours $hUnit $mins $mUnit';
   }
 
-  String _readyToFastLabel(
+  ({Duration remaining, DateTime endLocal})? _eatingWindowState(
     FastingController controller,
     FastProtocol protocol,
     DateTime nowUtc,
   ) {
     final lastEndMs = controller.lastCompletedFast?.endTimeMs;
     if (lastEndMs == null || protocol.targetDurationMin >= 1440) {
-      return 'Ready to Fast?';
+      return null;
     }
-    final eatingWindowMin = 1440 - protocol.targetDurationMin;
-    final lastEndUtc = DateTime.fromMillisecondsSinceEpoch(lastEndMs, isUtc: true);
-    final elapsedMin = nowUtc.difference(lastEndUtc).inMinutes;
-    return elapsedMin >= eatingWindowMin - 60
-        ? 'Ready to Fast?'
-        : 'Your time to eat';
+    final eatingWindow = Duration(minutes: 1440 - protocol.targetDurationMin);
+    final lastEndUtc =
+        DateTime.fromMillisecondsSinceEpoch(lastEndMs, isUtc: true);
+    final elapsed = nowUtc.difference(lastEndUtc);
+    final remaining = eatingWindow - elapsed;
+    if (remaining <= Duration.zero) {
+      return null;
+    }
+    return (
+      remaining: remaining,
+      endLocal: lastEndUtc.add(eatingWindow).toLocal(),
+    );
   }
 
   String _formatRelativePhrase(DateTime targetLocal, DateTime nowLocal) {
@@ -320,33 +326,87 @@ class FastingScreen extends StatelessWidget {
                                         ],
                                       ),
                                     )
-                                  : Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.restaurant_rounded,
-                                          size: 72,
-                                          color: theme.colorScheme.primary,
-                                        ),
-                                        const SizedBox(height: 10),
-                                        Text(
-                                          _readyToFastLabel(
-                                              controller, protocol, nowUtc),
-                                          style: theme.textTheme.titleMedium
-                                              ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Goal: ${_formatGoalDuration(Duration(minutes: protocol.targetDurationMin))}',
-                                          style: theme.textTheme.bodyMedium
-                                              ?.copyWith(
-                                            color: theme
-                                                .colorScheme.onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ],
+                                  : Builder(
+                                      builder: (context) {
+                                        final eatingState = _eatingWindowState(
+                                          controller,
+                                          protocol,
+                                          nowUtc,
+                                        );
+                                        if (eatingState != null) {
+                                          return Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.restaurant_rounded,
+                                                size: 56,
+                                                color: theme.colorScheme.primary,
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                'Your time to eat',
+                                                style: theme
+                                                    .textTheme.titleMedium
+                                                    ?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                _formatHoursMinutes(
+                                                  eatingState.remaining,
+                                                ),
+                                                style: theme
+                                                    .textTheme.headlineSmall
+                                                    ?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontFeatures: const [
+                                                    FontFeature
+                                                        .tabularFigures(),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Until: ${_panelTimeFmt.format(eatingState.endLocal)}',
+                                                style: theme
+                                                    .textTheme.bodySmall
+                                                    ?.copyWith(
+                                                  color: theme.colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        }
+                                        return Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.restaurant_rounded,
+                                              size: 72,
+                                              color: theme.colorScheme.primary,
+                                            ),
+                                            const SizedBox(height: 10),
+                                            Text(
+                                              'Ready to Fast?',
+                                              style: theme.textTheme.titleMedium
+                                                  ?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Goal: ${_formatGoalDuration(Duration(minutes: protocol.targetDurationMin))}',
+                                              style: theme.textTheme.bodyMedium
+                                                  ?.copyWith(
+                                                color: theme.colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
                                     ),
                             ),
                           ),
@@ -639,8 +699,8 @@ class FastingScreen extends StatelessWidget {
                                               },
                                               icon: Icon(
                                                 !isActive
-                                                    ? Icons.play_arrow_rounded
-                                                    : Icons.stop_rounded,
+                                                    ? Icons.play_circle_outline_rounded
+                                                    : Icons.stop_circle_outlined,
                                               ),
                                               label: Text(
                                                 !isActive
@@ -696,7 +756,7 @@ class FastingScreen extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Discard Active Fast?'),
+        title: const Text('Discard Ongoing Fast?'),
         content: const Text(
           'This in-progress fast will be discarded and not saved to your timeline.',
         ),
@@ -783,6 +843,8 @@ class FastingScreen extends StatelessWidget {
         targetDurationMin: result.targetDurationMin,
         mood: result.mood,
         note: result.note,
+        isClean: result.isClean,
+        endReason: result.endReason,
       );
     } on FastValidationException catch (e) {
       if (!context.mounted) return;

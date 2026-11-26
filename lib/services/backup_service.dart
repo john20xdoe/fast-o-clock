@@ -24,7 +24,7 @@ class BackupImportResult {
 }
 
 class BackupService {
-  static const int currentSchemaVersion = 1;
+  static const int currentSchemaVersion = 2;
   static const String appId = 'com.neurral.fast_oclock';
 
   final DatabaseService _databaseService;
@@ -218,7 +218,7 @@ class BackupService {
       throw const FormatException('Invalid backup JSON root object.');
     }
     final version = decoded['schemaVersion'];
-    if (version != currentSchemaVersion) {
+    if (version is! int || version < 1 || version > currentSchemaVersion) {
       throw FormatException('Unsupported backup schemaVersion: $version');
     }
 

@@ -46,24 +46,65 @@ class SettingsScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: ListTile(
-                  leading: const Icon(Icons.timer_outlined),
-                  title: const Text('Fasting Patterns'),
-                  subtitle: Text(defaultProtocol.label),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () async {
-                    final picked = await ProtocolPicker.show(
-                      context,
-                      selectedProtocolId: settings.defaultProtocolId,
-                      currentCustomDurationMin: settings.customDurationMin,
-                    );
-                    if (picked != null) {
-                      await controller.updateDefaultProtocol(
-                        picked.protocolId,
-                        customDurationMin: picked.targetDurationMin,
-                      );
-                    }
-                  },
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.timer_outlined),
+                      title: const Text('Fasting Patterns'),
+                      subtitle: Text(defaultProtocol.label),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () async {
+                        final picked = await ProtocolPicker.show(
+                          context,
+                          selectedProtocolId: settings.defaultProtocolId,
+                          currentCustomDurationMin: settings.customDurationMin,
+                        );
+                        if (picked != null) {
+                          await controller.updateDefaultProtocol(
+                            picked.protocolId,
+                            customDurationMin: picked.targetDurationMin,
+                          );
+                        }
+                      },
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.bedtime_outlined),
+                      title: const Text('Typical Bedtime'),
+                      subtitle: Text(
+                        settings.bedtimeMinutesOfDay != null
+                            ? _formatBedtime(
+                                context,
+                                settings.bedtimeMinutesOfDay!,
+                              )
+                            : 'Not set',
+                      ),
+                      trailing: settings.bedtimeMinutesOfDay != null
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded),
+                              tooltip: 'Clear bedtime',
+                              onPressed: () => controller.updateBedtime(null),
+                            )
+                          : const Icon(Icons.chevron_right_rounded),
+                      onTap: () async {
+                        final initial = settings.bedtimeMinutesOfDay != null
+                            ? TimeOfDay(
+                                hour: settings.bedtimeMinutesOfDay! ~/ 60,
+                                minute: settings.bedtimeMinutesOfDay! % 60,
+                              )
+                            : const TimeOfDay(hour: 23, minute: 0);
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: initial,
+                        );
+                        if (picked != null) {
+                          await controller.updateBedtime(
+                            picked.hour * 60 + picked.minute,
+                          );
+                        }
+                      },
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
@@ -255,6 +296,14 @@ class SettingsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _formatBedtime(BuildContext context, int minutesOfDay) {
+    final time = TimeOfDay(
+      hour: minutesOfDay ~/ 60,
+      minute: minutesOfDay % 60,
+    );
+    return MaterialLocalizations.of(context).formatTimeOfDay(time);
   }
 
   Widget _buildSectionTitle(BuildContext context, String title) {

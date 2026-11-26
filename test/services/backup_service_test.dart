@@ -201,6 +201,67 @@ void main() {
       );
     });
 
+    test('exports schemaVersion 2 with new fields and imports v1 backups with defaults',
+        () async {
+      await dbService.insertRecord(
+        FastRecord(
+          id: 'v2_rec',
+          protocolId: '16_8',
+          startTimeMs: nowMs - 10 * 3600000,
+          endTimeMs: nowMs,
+          targetDurationMin: 960,
+          isClean: false,
+          endReason: 'unwell',
+          createdAtMs: nowMs - 10 * 3600000,
+          updatedAtMs: nowMs,
+        ),
+        nowUtcMs: nowMs,
+      );
+
+      final exported = jsonDecode(
+        await backupService.exportBackupJson(exportedAtMs: nowMs),
+      ) as Map<String, dynamic>;
+      expect(exported['schemaVersion'], 2);
+      final exportedRec = (exported['records'] as List).first as Map;
+      expect(exportedRec['isClean'], isFalse);
+      expect(exportedRec['endReason'], 'unwell');
+
+      final v1Json = jsonEncode({
+        'schemaVersion': 1,
+        'appId': 'com.neurral.fast_oclock',
+        'exportedAtMs': nowMs,
+        'settings': {
+          'defaultProtocolId': '16_8',
+          'customDurationMin': 960,
+          'themeMode': 'dark',
+          'notifyGoalReached': true,
+          'notifyEatingWindow': false,
+          'showRemainingTime': false,
+        },
+        'records': [
+          {
+            'id': 'v1_rec',
+            'protocolId': '16_8',
+            'startTimeMs': nowMs - 16 * 3600000,
+            'endTimeMs': nowMs,
+            'targetDurationMin': 960,
+            'createdAtMs': nowMs - 16 * 3600000,
+            'updatedAtMs': nowMs,
+          },
+        ],
+      });
+
+      final res = await backupService.importBackupJson(
+        v1Json,
+        mode: BackupImportMode.replaceAll,
+        nowUtcMs: nowMs,
+      );
+      expect(res.importedCount, 1);
+      final imported = await dbService.getRecordById('v1_rec');
+      expect(imported?.isClean, isTrue);
+      expect(imported?.endReason, isNull);
+    });
+
     test(
         'exportSampleMonthBackupJson generates 30 valid non-overlapping mixed fasts and round-trips cleanly',
         () async {

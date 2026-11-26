@@ -8,7 +8,7 @@ import '../models/timeline_summary.dart';
 import '../services/database_service.dart';
 import '../state/fasting_controller.dart';
 import '../widgets/fast_editor_sheet.dart';
-import '../widgets/timeline_chart.dart';
+import '../widgets/timeline_calendar.dart';
 
 class TimelineScreen extends StatefulWidget {
   final String? focusedRecordId;
@@ -25,21 +25,16 @@ class TimelineScreen extends StatefulWidget {
 }
 
 class _TimelineScreenState extends State<TimelineScreen> {
-  static const double _estimatedHeaderFallback = 380.0;
+  static const double _estimatedHeaderFallback = 420.0;
   static const double _estimatedMonthHeaderHeight = 36.0;
-  static const double _estimatedPlainRowHeight = 104.0;
-  static const double _estimatedNoteRowHeight = 132.0;
+  static const double _estimatedPlainRowHeight = 96.0;
+  static const double _estimatedNoteRowHeight = 122.0;
 
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _headerKey = GlobalKey();
-  final GlobalKey _chartKey = GlobalKey();
-  final GlobalKey _filterKey = GlobalKey();
   final GlobalKey _focusedRowKey = GlobalKey();
 
-  TimelineRange? _userSelectedRange;
-  TimelineFilter _selectedFilter = TimelineFilter.all;
-  int? _selectedBarIndex;
-
+  DateTime? _visibleMonth;
   String? _pendingFocusedId;
   String? _highlightedRecordId;
   bool _focusCallbackScheduled = false;
@@ -49,9 +44,8 @@ class _TimelineScreenState extends State<TimelineScreen> {
   int? _cachedVersion;
   String? _cachedActiveId;
   int? _cachedDayKey;
-  int? _cachedTargetMin;
-  TimelineRange? _cachedRange;
-  TimelineFilter? _cachedFilter;
+  DateTime? _cachedMonth;
+  int? _cachedBedtime;
 
   @override
   void initState() {
@@ -75,21 +69,25 @@ class _TimelineScreenState extends State<TimelineScreen> {
     super.dispose();
   }
 
+  DateTime _currentMonth(DateTime nowUtc) {
+    final local = nowUtc.toLocal();
+    return DateTime(local.year, local.month, 1);
+  }
+
   TimelineSnapshot _resolveSnapshot(
     FastingController controller, {
     required int version,
     required String? activeId,
     required int dayKey,
-    required int targetMin,
-    required TimelineRange range,
+    required DateTime visibleMonth,
+    required int? bedtimeMinutesOfDay,
   }) {
     if (_cachedSnapshot != null &&
         _cachedVersion == version &&
         _cachedActiveId == activeId &&
         _cachedDayKey == dayKey &&
-        _cachedTargetMin == targetMin &&
-        _cachedRange == range &&
-        _cachedFilter == _selectedFilter) {
+        _cachedMonth == visibleMonth &&
+        _cachedBedtime == bedtimeMinutesOfDay) {
       return _cachedSnapshot!;
     }
 
@@ -97,17 +95,15 @@ class _TimelineScreenState extends State<TimelineScreen> {
       history: controller.history,
       activeFast: controller.activeFast,
       nowUtc: controller.nowUtc,
-      defaultTargetMin: targetMin,
-      range: range,
-      filter: _selectedFilter,
+      visibleMonth: visibleMonth,
+      bedtimeMinutesOfDay: bedtimeMinutesOfDay,
     );
     _cachedSnapshot = snapshot;
     _cachedVersion = version;
     _cachedActiveId = activeId;
     _cachedDayKey = dayKey;
-    _cachedTargetMin = targetMin;
-    _cachedRange = range;
-    _cachedFilter = _selectedFilter;
+    _cachedMonth = visibleMonth;
+    _cachedBedtime = bedtimeMinutesOfDay;
     return snapshot;
   }
 
@@ -130,23 +126,10 @@ class _TimelineScreenState extends State<TimelineScreen> {
       (item) => item is TimelineRecordItem && item.record.id == targetId,
     );
 
-    if (targetIndex == -1) {
-      if (_selectedFilter != TimelineFilter.all ||
-          snapshot.range != TimelineRange.all) {
-        setState(() {
-          _selectedFilter = TimelineFilter.all;
-          _userSelectedRange = TimelineRange.all;
-          _selectedBarIndex = null;
-        });
-        return;
-      }
-      _pendingFocusedId = null;
-      widget.onFocusedRecordHandled?.call();
-      return;
-    }
-
     _pendingFocusedId = null;
     widget.onFocusedRecordHandled?.call();
+
+    if (targetIndex == -1) return;
 
     _highlightTimer?.cancel();
     setState(() {
@@ -160,14 +143,9 @@ class _TimelineScreenState extends State<TimelineScreen> {
     });
 
     if (_scrollController.hasClients) {
-      double topHeight = 0;
-      for (final key in [_headerKey, _chartKey, _filterKey]) {
-        final box = key.currentContext?.findRenderObject() as RenderBox?;
-        if (box != null) {
-          topHeight += box.size.height;
-        }
-      }
-      if (topHeight <= 0) topHeight = _estimatedHeaderFallback;
+      final box = _headerKey.currentContext?.findRenderObject() as RenderBox?;
+      final topHeight =
+          (box != null && box.size.height > 0) ? box.size.height : _estimatedHeaderFallback;
 
       double listOffset = 0;
       for (int i = 0; i < targetIndex; i++) {
@@ -210,28 +188,29 @@ class _TimelineScreenState extends State<TimelineScreen> {
           int historyVersion,
           String? activeId,
           int localDayKey,
-          int targetDurationMin,
+          int? bedtimeMinutesOfDay,
         })>(
       selector: (_, controller) => (
         historyVersion: controller.historyVersion,
         activeId: controller.activeFast?.id,
         localDayKey: controller.localDayKey,
-        targetDurationMin: controller.selectedProtocol.targetDurationMin,
+        bedtimeMinutesOfDay: controller.settings.bedtimeMinutesOfDay,
       ),
       builder: (context, slice, _) {
         final controller = context.read<FastingController>();
         final theme = Theme.of(context);
         final history = controller.history;
-        final effectiveRange = _userSelectedRange ??
-            (history.length > 7 ? TimelineRange.d30 : TimelineRange.d7);
+        final currentMonth = _currentMonth(controller.nowUtc);
+        final effectiveMonth = _visibleMonth ?? currentMonth;
+        final canGoNext = effectiveMonth.isBefore(currentMonth);
 
         final snapshot = _resolveSnapshot(
           controller,
           version: slice.historyVersion,
           activeId: slice.activeId,
           dayKey: slice.localDayKey,
-          targetMin: slice.targetDurationMin,
-          range: effectiveRange,
+          visibleMonth: effectiveMonth,
+          bedtimeMinutesOfDay: slice.bedtimeMinutesOfDay,
         );
 
         _scheduleFocusIfNeeded(snapshot);
@@ -279,84 +258,38 @@ class _TimelineScreenState extends State<TimelineScreen> {
                                   ),
                                 ],
                               ),
-                              if (history.isNotEmpty) ...[
-                                const SizedBox(height: 10),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: SegmentedButton<TimelineRange>(
-                                    showSelectedIcon: false,
-                                    style: SegmentedButton.styleFrom(
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                    segments: const [
-                                      ButtonSegment(
-                                        value: TimelineRange.d7,
-                                        label: Text('7D'),
-                                      ),
-                                      ButtonSegment(
-                                        value: TimelineRange.d30,
-                                        label: Text('30D'),
-                                      ),
-                                      ButtonSegment(
-                                        value: TimelineRange.all,
-                                        label: Text('All'),
-                                      ),
-                                    ],
-                                    selected: {effectiveRange},
-                                    onSelectionChanged: (selection) {
-                                      setState(() {
-                                        _userSelectedRange = selection.first;
-                                        _selectedBarIndex = null;
-                                      });
-                                    },
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 8),
-                              _buildKpiSummaryCard(
-                                context,
-                                snapshot,
-                                effectiveRange,
+                              const SizedBox(height: 10),
+                              _buildCompactKpiStrip(context, snapshot),
+                              const SizedBox(height: 10),
+                              TimelineCalendar(
+                                monthTitle: snapshot.monthTitle,
+                                days: snapshot.calendarDays,
+                                canGoNext: canGoNext,
+                                onPreviousMonth: () {
+                                  setState(() {
+                                    _visibleMonth = DateTime(
+                                      effectiveMonth.year,
+                                      effectiveMonth.month - 1,
+                                      1,
+                                    );
+                                  });
+                                },
+                                onNextMonth: () {
+                                  if (!canGoNext) return;
+                                  setState(() {
+                                    _visibleMonth = DateTime(
+                                      effectiveMonth.year,
+                                      effectiveMonth.month + 1,
+                                      1,
+                                    );
+                                  });
+                                },
                               ),
                             ],
                           ),
                         ),
                       ),
                     ),
-                    SliverToBoxAdapter(
-                      child: KeyedSubtree(
-                        key: _chartKey,
-                        child: Container(
-                          color: theme.cardTheme.color ??
-                              theme.colorScheme.surfaceContainerLow,
-                          padding: const EdgeInsets.only(top: 10, bottom: 8),
-                          child: DurationBarChart(
-                            buckets: snapshot.chartBuckets,
-                            defaultTargetMin: snapshot.defaultTargetMin,
-                            maxChartHours: snapshot.maxChartHours,
-                            range: effectiveRange,
-                            selectedIndex: _selectedBarIndex,
-                            onSelectIndex: (idx) {
-                              setState(() {
-                                _selectedBarIndex = idx;
-                              });
-                            },
-                            onEditRecord: (record) =>
-                                _editPastFast(context, controller, record),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (history.isNotEmpty)
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                        sliver: SliverToBoxAdapter(
-                          child: KeyedSubtree(
-                            key: _filterKey,
-                            child: _buildFilterRow(snapshot),
-                          ),
-                        ),
-                      ),
                     if (history.isEmpty)
                       SliverFillRemaining(
                         hasScrollBody: false,
@@ -392,63 +325,37 @@ class _TimelineScreenState extends State<TimelineScreen> {
                           ),
                         ),
                       )
-                    else if (snapshot.items.isEmpty)
-                      SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.filter_list_off_rounded,
-                                  size: 36,
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  snapshot.allCount == 0
-                                      ? 'No fasts in this period'
-                                      : 'No fasts match this filter',
-                                  style:
-                                      theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                TextButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _selectedFilter = TimelineFilter.all;
-                                      if (snapshot.allCount == 0) {
-                                        _userSelectedRange = TimelineRange.all;
-                                        _selectedBarIndex = null;
-                                      }
-                                    });
-                                  },
-                                  child: const Text('Show All'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      )
                     else
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
-                        sliver: SliverList.builder(
-                          addAutomaticKeepAlives: false,
-                          itemCount: snapshot.items.length,
-                          itemBuilder: (ctx, index) {
-                            final item = snapshot.items[index];
-                            return switch (item) {
-                              TimelineMonthHeader() =>
-                                _buildMonthHeader(context, item),
-                              TimelineRecordItem() =>
-                                _buildHistoryCard(context, controller, item),
-                            };
-                          },
+                      DecoratedSliver(
+                        decoration: BoxDecoration(
+                          color: theme.brightness == Brightness.dark
+                              ? Colors.black
+                              : null,
+                        ),
+                        sliver: SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+                          sliver: SliverList.builder(
+                            addAutomaticKeepAlives: false,
+                            itemCount: snapshot.items.length,
+                            itemBuilder: (ctx, index) {
+                              final item = snapshot.items[index];
+                              final isLast = index == snapshot.items.length - 1;
+                              final isFirstRecord = index == 0 ||
+                                  snapshot.items[index - 1]
+                                      is TimelineMonthHeader;
+                              return switch (item) {
+                                TimelineMonthHeader() =>
+                                  _buildMonthHeader(context, item),
+                                TimelineRecordItem() => _buildTimelineRow(
+                                    context,
+                                    controller,
+                                    item,
+                                    isFirstInGroup: isFirstRecord,
+                                    isLastOverall: isLast,
+                                  ),
+                              };
+                            },
+                          ),
                         ),
                       ),
                   ],
@@ -461,127 +368,53 @@ class _TimelineScreenState extends State<TimelineScreen> {
     );
   }
 
-  Widget _buildKpiSummaryCard(
+  Widget _buildCompactKpiStrip(
     BuildContext context,
     TimelineSnapshot snapshot,
-    TimelineRange range,
   ) {
     final theme = Theme.of(context);
-    final avgSubtitle = switch (range) {
-      TimelineRange.d7 => 'Last 7d avg',
-      TimelineRange.d30 => 'Last 30d avg',
-      TimelineRange.all => 'All-time avg',
-    };
-
     return Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _buildKpiTile(
-                    context,
-                    icon: Icons.local_fire_department_rounded,
-                    iconColor: DurationBarChart.endedEarlyColor,
-                    value: '${snapshot.currentStreak}d',
-                    subtitle: 'Streak · Best ${snapshot.bestStreak}d',
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _buildKpiTile(
-                    context,
-                    icon: Icons.check_circle_outline_rounded,
-                    iconColor: DurationBarChart.goalMetColor,
-                    value: '${snapshot.completionPercentInRange}%',
-                    subtitle:
-                        'Goal Met · ${snapshot.goalMetCountInRange}/${snapshot.totalFastsInRange}',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildKpiTile(
-                    context,
-                    icon: Icons.schedule_rounded,
-                    iconColor: theme.colorScheme.primary,
-                    value: TimelineSnapshot.formatDuration(
-                      snapshot.averageDurationInRange,
-                    ),
-                    subtitle: avgSubtitle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _buildKpiTile(
-                    context,
-                    icon: Icons.emoji_events_outlined,
-                    iconColor: theme.colorScheme.secondary,
-                    value: TimelineSnapshot.formatDuration(
-                      snapshot.longestDurationInRange,
-                    ),
-                    subtitle: 'Longest fast',
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildKpiTile(
-    BuildContext context, {
-    required IconData icon,
-    required Color iconColor,
-    required String value,
-    required String subtitle,
-  }) {
-    final theme = Theme.of(context);
-    return Semantics(
-      container: true,
-      label: '$subtitle: $value',
-      excludeSemantics: true,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(10),
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
-            Icon(icon, size: 17, color: iconColor),
-            const SizedBox(width: 7),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+              child: _buildKpiCell(
+                context,
+                label: 'Streak',
+                value: '${snapshot.currentStreak}d',
+                sublabel: 'Best ${snapshot.bestStreak}d',
+              ),
+            ),
+            Container(
+              width: 1,
+              height: 28,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+            Expanded(
+              child: _buildKpiCell(
+                context,
+                label: 'Avg Duration',
+                value: TimelineSnapshot.formatDuration(
+                  snapshot.allTimeAverageDuration,
+                ),
+                sublabel: '${snapshot.totalCompletedFasts} fasts',
+              ),
+            ),
+            Container(
+              width: 1,
+              height: 28,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+            Expanded(
+              child: _buildKpiCell(
+                context,
+                label: 'Goal Met',
+                value: '${snapshot.goalMetPercent}%',
+                sublabel:
+                    '${snapshot.goalMetCount}/${snapshot.totalCompletedFasts}',
               ),
             ),
           ],
@@ -590,49 +423,47 @@ class _TimelineScreenState extends State<TimelineScreen> {
     );
   }
 
-  Widget _buildFilterRow(TimelineSnapshot snapshot) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
+  Widget _buildKpiCell(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required String sublabel,
+  }) {
+    final theme = Theme.of(context);
+    return Semantics(
+      container: true,
+      label: '$label: $value ($sublabel)',
+      excludeSemantics: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _buildFilterChip(
-            TimelineFilter.all,
-            'All (${snapshot.allCount})',
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
-          const SizedBox(width: 8),
-          _buildFilterChip(
-            TimelineFilter.goalMet,
-            'Goal Met (${snapshot.goalMetCount})',
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
           ),
-          const SizedBox(width: 8),
-          _buildFilterChip(
-            TimelineFilter.endedEarly,
-            'Ended Early (${snapshot.endedEarlyCount})',
-          ),
-          const SizedBox(width: 8),
-          _buildFilterChip(
-            TimelineFilter.withNotes,
-            'Notes (${snapshot.withNotesCount})',
+          Text(
+            sublabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontSize: 10.5,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildFilterChip(TimelineFilter filter, String label) {
-    final selected = _selectedFilter == filter;
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      showCheckmark: false,
-      visualDensity: VisualDensity.compact,
-      onSelected: (_) {
-        if (!selected) {
-          setState(() {
-            _selectedFilter = filter;
-          });
-        }
-      },
     );
   }
 
@@ -671,154 +502,128 @@ class _TimelineScreenState extends State<TimelineScreen> {
     );
   }
 
-  ({IconData icon, Color color, String label}) _moodStyle(
-    ThemeData theme,
-    String mood,
-  ) {
-    switch (mood.toLowerCase()) {
-      case 'great':
-        return (
-          icon: Icons.sentiment_very_satisfied_rounded,
-          color: DurationBarChart.goalMetColor,
-          label: 'Great',
-        );
-      case 'okay':
-        return (
-          icon: Icons.sentiment_neutral_rounded,
-          color: const Color(0xFF64B5F6),
-          label: 'Okay',
-        );
-      case 'challenging':
-        return (
-          icon: Icons.sentiment_dissatisfied_rounded,
-          color: DurationBarChart.endedEarlyColor,
-          label: 'Challenging',
-        );
-      case 'bad':
-        return (
-          icon: Icons.sentiment_very_dissatisfied_rounded,
-          color: theme.colorScheme.error,
-          label: 'Bad',
-        );
-      default:
-        return (
-          icon: Icons.sentiment_satisfied_alt_rounded,
-          color: theme.colorScheme.primary,
-          label: mood,
-        );
-    }
-  }
-
-  Widget _buildHistoryCard(
+  Widget _buildTimelineRow(
     BuildContext context,
     FastingController controller,
-    TimelineRecordItem item,
-  ) {
+    TimelineRecordItem item, {
+    required bool isFirstInGroup,
+    required bool isLastOverall,
+  }) {
     final theme = Theme.of(context);
     final record = item.record;
-    final statusColor = item.isGoalMet
-        ? DurationBarChart.goalMetColor
-        : DurationBarChart.endedEarlyColor;
+    final badgeColor = item.isGoalMet ? goalMetColor : endedEarlyColor;
     final isHighlighted = record.id == _highlightedRecordId;
-    final moodStyle =
-        record.mood != null ? _moodStyle(theme, record.mood!) : null;
+    final spineColor = theme.colorScheme.outlineVariant;
 
     return KeyedSubtree(
       key: ValueKey(record.id),
       child: KeyedSubtree(
         key: isHighlighted ? _focusedRowKey : null,
-        child: Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: isHighlighted
-                ? BorderSide(color: theme.colorScheme.primary, width: 2)
-                : BorderSide.none,
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () => _editPastFast(context, controller, record),
-            child: Semantics(
-              container: true,
-              label: item.semanticLabel,
-              excludeSemantics: true,
-              child: IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Left vertical timeline spine
+              SizedBox(
+                width: 24,
+                child: Column(
                   children: [
-                    Container(width: 4, color: statusColor),
+                    Container(
+                      width: 2,
+                      height: 16,
+                      color: isFirstInGroup ? Colors.transparent : spineColor,
+                    ),
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     Expanded(
+                      child: Container(
+                        width: 2,
+                        color: spineColor,
+                      ),
+                    ),
+                    if (isLastOverall)
+                      Icon(
+                        Icons.arrow_drop_down_rounded,
+                        size: 18,
+                        color: spineColor,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Neutral 3-line card
+              Expanded(
+                child: Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: isHighlighted
+                        ? BorderSide(color: theme.colorScheme.primary, width: 2)
+                        : BorderSide.none,
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => _editPastFast(context, controller, record),
+                    child: Semantics(
+                      container: true,
+                      label: item.semanticLabel,
+                      excludeSemantics: true,
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Line 1: NOV 25 • WED · Pattern · Status Badge
                             Row(
                               children: [
                                 Expanded(
-                                  child: Text.rich(
-                                    TextSpan(
-                                      children: [
-                                        TextSpan(
-                                          text: item.dateStampLabel,
-                                          style: theme.textTheme.labelSmall
-                                              ?.copyWith(
-                                            color: theme
-                                                .colorScheme.onSurfaceVariant,
-                                            fontWeight: FontWeight.w600,
-                                            letterSpacing: 0.3,
-                                          ),
-                                        ),
-                                        TextSpan(
-                                          text: ' • ',
-                                          style: theme.textTheme.labelSmall
-                                              ?.copyWith(
-                                            color: theme
-                                                .colorScheme.onSurfaceVariant
-                                                .withValues(alpha: 0.6),
-                                          ),
-                                        ),
-                                        TextSpan(
-                                          text: item.endTimeLabel,
-                                          style: theme.textTheme.titleSmall
-                                              ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            fontFeatures: const [
-                                              FontFeature.tabularFigures(),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                  child: Text(
+                                    '${item.startDateLabel} • ${item.weekdayLabel}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.4,
+                                    ),
                                   ),
                                 ),
+                                _neutralChip(context, label: item.patternTag),
                                 const SizedBox(width: 6),
-                                _miniPill(
-                                  context,
-                                  label: item.protocol.label,
-                                  bg: theme.colorScheme.surfaceContainerHighest,
-                                  fg: theme.colorScheme.onSurface,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  item.deltaLabel,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontFeatures: const [
-                                      FontFeature.tabularFigures(),
-                                    ],
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: badgeColor.withValues(alpha: 0.16),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    item.isGoalMet ? 'Goal Met' : 'Ended Early',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: badgeColor,
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 5),
+                            // Line 2: Base duration + excess or strikeout shortfall
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
                               children: [
                                 Text(
-                                  item.durationLabel,
+                                  item.baseDurationLabel,
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     fontFeatures: const [
@@ -826,113 +631,93 @@ class _TimelineScreenState extends State<TimelineScreen> {
                                     ],
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                _miniPill(
-                                  context,
-                                  label: TimelineSnapshot.shortStageLabel(
-                                    item.metabolicStage,
-                                  ),
-                                  bg: theme.colorScheme.primaryContainer
-                                      .withValues(alpha: 0.45),
-                                  fg: theme.colorScheme.primary,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'from ${item.startTimeLabel}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
+                                if (item.excessLabel != null) ...[
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    item.excessLabel!,
+                                    style: theme.textTheme.labelMedium?.copyWith(
+                                      color: goalMetColor,
+                                      fontWeight: FontWeight.w600,
                                       fontFeatures: const [
                                         FontFeature.tabularFigures(),
                                       ],
                                     ),
                                   ),
-                                ),
-                                if (moodStyle != null) ...[
-                                  const SizedBox(width: 8),
-                                  Icon(
-                                    moodStyle.icon,
-                                    size: 16,
-                                    color: moodStyle.color,
-                                  ),
-                                  const SizedBox(width: 3),
+                                ],
+                                if (item.shortfallLabel != null) ...[
+                                  const SizedBox(width: 6),
                                   Text(
-                                    moodStyle.label,
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: moodStyle.color,
-                                      fontWeight: FontWeight.w600,
+                                    item.shortfallLabel!,
+                                    style: theme.textTheme.labelMedium?.copyWith(
+                                      color: theme.colorScheme.error,
+                                      decoration: TextDecoration.lineThrough,
+                                      decorationColor: theme.colorScheme.error,
+                                      fontFeatures: const [
+                                        FontFeature.tabularFigures(),
+                                      ],
                                     ),
                                   ),
                                 ],
                               ],
                             ),
+                            const SizedBox(height: 4),
+                            // Line 3: Time window + optional subtle tags
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Text(
+                                  item.timeWindowLabel,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                                ),
+                                if (!item.isClean)
+                                  _neutralChip(context, label: 'Modified'),
+                                if (item.isLateNightStart)
+                                  _neutralChip(context, label: 'Late-night'),
+                                if (item.endReasonLabel != null)
+                                  _neutralChip(
+                                    context,
+                                    label: item.endReasonLabel!,
+                                  ),
+                              ],
+                            ),
                             if (item.hasNote) ...[
                               const SizedBox(height: 6),
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Icon(
-                                      Icons.notes_rounded,
-                                      size: 14,
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      record.note!.trim(),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color:
-                                            theme.colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              Text(
+                                record.note!.trim(),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
                               ),
                             ],
-                            const SizedBox(height: 8),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(2),
-                              child: LinearProgressIndicator(
-                                value: item.progressRatio,
-                                minHeight: 3,
-                                backgroundColor:
-                                    theme.colorScheme.surfaceContainerHighest,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(statusColor),
-                              ),
-                            ),
                           ],
                         ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _miniPill(
-    BuildContext context, {
-    required String label,
-    required Color bg,
-    required Color fg,
-  }) {
+  Widget _neutralChip(BuildContext context, {required String label}) {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: bg,
+        color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -940,7 +725,7 @@ class _TimelineScreenState extends State<TimelineScreen> {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: theme.textTheme.labelSmall?.copyWith(
-          color: fg,
+          color: theme.colorScheme.onSurfaceVariant,
           fontSize: 10.5,
           fontWeight: FontWeight.w600,
         ),
@@ -953,10 +738,6 @@ class _TimelineScreenState extends State<TimelineScreen> {
     FastingController controller,
   ) async {
     final protocol = controller.selectedProtocol;
-    final nowMs = controller.nowUtc.millisecondsSinceEpoch;
-    final defaultEndMs = nowMs - 3600 * 1000;
-    final defaultStartMs =
-        defaultEndMs - protocol.targetDurationMin * 60 * 1000;
 
     final result = await FastEditorSheet.show(
       context,
@@ -964,8 +745,6 @@ class _TimelineScreenState extends State<TimelineScreen> {
       databaseService: controller.databaseService,
       initialProtocolId: protocol.id,
       initialTargetDurationMin: protocol.targetDurationMin,
-      initialStartTimeUtcMs: defaultStartMs,
-      initialEndTimeUtcMs: defaultEndMs,
     );
     if (result == null || result.endTimeUtcMs == null) return;
     try {
@@ -976,6 +755,8 @@ class _TimelineScreenState extends State<TimelineScreen> {
         endTimeUtcMs: result.endTimeUtcMs!,
         mood: result.mood,
         note: result.note,
+        isClean: result.isClean,
+        endReason: result.endReason,
       );
     } on FastValidationException catch (e) {
       if (!context.mounted) return;
@@ -1001,6 +782,8 @@ class _TimelineScreenState extends State<TimelineScreen> {
       initialEndTimeUtcMs: record.endTimeMs,
       initialMood: record.mood,
       initialNote: record.note,
+      initialIsClean: record.isClean,
+      initialEndReason: record.endReason,
     );
     if (result == null) return;
 
@@ -1041,6 +824,8 @@ class _TimelineScreenState extends State<TimelineScreen> {
         endTimeUtcMs: result.endTimeUtcMs!,
         mood: result.mood,
         note: result.note,
+        isClean: result.isClean,
+        endReason: result.endReason,
       );
     } on FastValidationException catch (e) {
       if (!context.mounted) return;

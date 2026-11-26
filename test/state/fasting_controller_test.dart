@@ -203,5 +203,29 @@ void main() {
 
       localController.dispose();
     });
+
+    test('persists isClean, endReason, and updateBedtime including clearing',
+        () async {
+      final endMs =
+          fakeNowUtc.subtract(const Duration(hours: 2)).millisecondsSinceEpoch;
+      await controller.addPastFast(
+        protocolId: '16_8',
+        targetDurationMin: 960,
+        startTimeUtcMs: endMs - 10 * 3600000,
+        endTimeUtcMs: endMs,
+        isClean: false,
+        endReason: 'social',
+      );
+
+      final saved = controller.history.first;
+      expect(saved.isClean, isFalse);
+      expect(saved.endReason, 'social');
+
+      await controller.updateBedtime(23 * 60 + 15);
+      expect(controller.settings.bedtimeMinutesOfDay, 23 * 60 + 15);
+
+      await controller.updateBedtime(null);
+      expect(controller.settings.bedtimeMinutesOfDay, isNull);
+    });
   });
 }

@@ -129,5 +129,48 @@ void main() {
       final fetched = await dbService.getRecordById('valid_4h');
       expect(fetched?.id, 'valid_4h');
     });
+
+    test('upgrades v1 schema to v2 with is_clean default 1 and end_reason null',
+        () async {
+      final db = await openDatabase(
+        inMemoryDatabasePath,
+        version: 1,
+        onCreate: (db, version) async {
+          await db.execute('''
+            CREATE TABLE fast_records (
+              id TEXT PRIMARY KEY,
+              protocol_id TEXT NOT NULL,
+              start_time_ms INTEGER NOT NULL,
+              end_time_ms INTEGER,
+              target_duration_min INTEGER NOT NULL,
+              note TEXT,
+              mood TEXT,
+              created_at_ms INTEGER NOT NULL,
+              updated_at_ms INTEGER NOT NULL
+            )
+          ''');
+        },
+      );
+      await db.insert('fast_records', {
+        'id': 'v1_rec',
+        'protocol_id': '16_8',
+        'start_time_ms': baseNowMs - 16 * 3600000,
+        'end_time_ms': baseNowMs,
+        'target_duration_min': 960,
+        'note': null,
+        'mood': null,
+        'created_at_ms': baseNowMs - 16 * 3600000,
+        'updated_at_ms': baseNowMs,
+      });
+      final path = db.path;
+      await db.close();
+
+      final upgradedService = DatabaseService(overridePath: path);
+      final record = await upgradedService.getRecordById('v1_rec');
+      expect(record, isNotNull);
+      expect(record!.isClean, isTrue);
+      expect(record.endReason, isNull);
+      await upgradedService.close();
+    });
   });
 }

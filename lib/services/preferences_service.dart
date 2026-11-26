@@ -10,6 +10,7 @@ class PreferencesService {
   static const String keyNotifyGoalReached = 'pref_notify_goal_reached';
   static const String keyNotifyEatingWindow = 'pref_notify_eating_window';
   static const String keyShowRemainingTime = 'pref_show_remaining_time';
+  static const String keyBedtimeMinutesOfDay = 'pref_bedtime_minutes_of_day';
 
   Future<AppSettings> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -21,6 +22,7 @@ class PreferencesService {
       notifyGoalReached: prefs.getBool(keyNotifyGoalReached) ?? true,
       notifyEatingWindow: prefs.getBool(keyNotifyEatingWindow) ?? false,
       showRemainingTime: prefs.getBool(keyShowRemainingTime) ?? false,
+      bedtimeMinutesOfDay: prefs.getInt(keyBedtimeMinutesOfDay),
     );
   }
 
@@ -33,5 +35,13 @@ class PreferencesService {
     await prefs.setBool(keyNotifyGoalReached, settings.notifyGoalReached);
     await prefs.setBool(keyNotifyEatingWindow, settings.notifyEatingWindow);
     await prefs.setBool(keyShowRemainingTime, settings.showRemainingTime);
+    if (settings.bedtimeMinutesOfDay != null) {
+      await prefs.setInt(
+        keyBedtimeMinutesOfDay,
+        settings.bedtimeMinutesOfDay!,
+      );
+    } else {
+      await prefs.remove(keyBedtimeMinutesOfDay);
+    }
   }
 }

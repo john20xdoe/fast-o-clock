@@ -10,6 +10,8 @@ class FastRecord {
   final int targetDurationMin;
   final String? note;
   final String? mood; // 'great', 'okay', 'challenging', 'bad'
+  final bool isClean;
+  final String? endReason; // 'hungry', 'social', 'unwell', 'other'
   final int createdAtMs;
   final int updatedAtMs;
 
@@ -21,6 +23,8 @@ class FastRecord {
     required this.targetDurationMin,
     this.note,
     this.mood,
+    this.isClean = true,
+    this.endReason,
     required this.createdAtMs,
     required this.updatedAtMs,
   });
@@ -95,6 +99,9 @@ class FastRecord {
     bool clearNote = false,
     String? mood,
     bool clearMood = false,
+    bool? isClean,
+    String? endReason,
+    bool clearEndReason = false,
     int? createdAtMs,
     int? updatedAtMs,
   }) {
@@ -106,6 +113,8 @@ class FastRecord {
       targetDurationMin: targetDurationMin ?? this.targetDurationMin,
       note: clearNote ? null : (note ?? this.note),
       mood: clearMood ? null : (mood ?? this.mood),
+      isClean: isClean ?? this.isClean,
+      endReason: clearEndReason ? null : (endReason ?? this.endReason),
       createdAtMs: createdAtMs ?? this.createdAtMs,
       updatedAtMs: updatedAtMs ?? this.updatedAtMs,
     );
@@ -119,6 +128,8 @@ class FastRecord {
         'target_duration_min': targetDurationMin,
         'note': note,
         'mood': mood,
+        'is_clean': isClean ? 1 : 0,
+        'end_reason': endReason,
         'created_at_ms': createdAtMs,
         'updated_at_ms': updatedAtMs,
       };
@@ -132,6 +143,10 @@ class FastRecord {
       targetDurationMin: (map['target_duration_min'] as num).toInt(),
       note: map['note'] as String?,
       mood: map['mood'] as String?,
+      isClean: map['is_clean'] == null
+          ? true
+          : ((map['is_clean'] as num).toInt() != 0),
+      endReason: map['end_reason'] as String?,
       createdAtMs: (map['created_at_ms'] as num).toInt(),
       updatedAtMs: (map['updated_at_ms'] as num).toInt(),
     );
@@ -145,6 +160,8 @@ class FastRecord {
         'targetDurationMin': targetDurationMin,
         'note': note,
         'mood': mood,
+        'isClean': isClean,
+        'endReason': endReason,
         'createdAtMs': createdAtMs,
         'updatedAtMs': updatedAtMs,
       };
@@ -158,6 +175,8 @@ class FastRecord {
       targetDurationMin: (json['targetDurationMin'] as num).toInt(),
       note: json['note'] as String?,
       mood: json['mood'] as String?,
+      isClean: (json['isClean'] as bool?) ?? true,
+      endReason: json['endReason'] as String?,
       createdAtMs: (json['createdAtMs'] as num).toInt(),
       updatedAtMs: (json['updatedAtMs'] as num).toInt(),
     );

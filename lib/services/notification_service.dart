@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -62,6 +63,22 @@ class NotificationService {
     }
   }
 
+  Future<AndroidScheduleMode> _resolveAndroidScheduleMode() async {
+    try {
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      if (android != null) {
+        final canExact = await android.canScheduleExactNotifications() ?? false;
+        if (canExact) {
+          return AndroidScheduleMode.exactAllowWhileIdle;
+        }
+      }
+    } catch (e) {
+      debugPrint('NotificationService.canScheduleExactNotifications failed: $e');
+    }
+    return AndroidScheduleMode.inexactAllowWhileIdle;
+  }
+
   Future<void> scheduleGoalReached({
     required int targetEndTimeUtcMs,
     required String protocolLabel,
@@ -90,17 +107,21 @@ class NotificationService {
     );
 
     try {
+      await requestPermissions();
+      final scheduleMode = await _resolveAndroidScheduleMode();
       await _plugin.zonedSchedule(
         goalReachedNotificationId,
         'Fasting Goal Reached!',
         'You completed your $protocolLabel fasting target.',
         scheduledDate,
         details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        androidScheduleMode: scheduleMode,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
       );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('NotificationService.scheduleGoalReached failed: $e');
+    }
   }
 
   Future<void> scheduleEatingWindowEnding({
@@ -139,17 +160,21 @@ class NotificationService {
         : 'Your eating window is ending. Ready to start your next fast?';
 
     try {
+      await requestPermissions();
+      final scheduleMode = await _resolveAndroidScheduleMode();
       await _plugin.zonedSchedule(
         eatingWindowNotificationId,
         'Eating Window Ending Soon',
         body,
         scheduledDate,
         details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        androidScheduleMode: scheduleMode,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
       );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('NotificationService.scheduleEatingWindowEnding failed: $e');
+    }
   }
 
   Future<void> cancelGoalReached() async {

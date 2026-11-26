@@ -20,6 +20,8 @@ class FastEditorResult {
   final int? endTimeUtcMs;
   final String? mood;
   final String? note;
+  final bool isClean;
+  final String? endReason;
   final bool deleteRequested;
 
   const FastEditorResult({
@@ -29,6 +31,8 @@ class FastEditorResult {
     this.endTimeUtcMs,
     this.mood,
     this.note,
+    this.isClean = true,
+    this.endReason,
     this.deleteRequested = false,
   });
 }
@@ -39,10 +43,12 @@ class FastEditorSheet extends StatefulWidget {
   final String? recordId;
   final String initialProtocolId;
   final int initialTargetDurationMin;
-  final int initialStartTimeUtcMs;
+  final int? initialStartTimeUtcMs;
   final int? initialEndTimeUtcMs;
   final String? initialMood;
   final String? initialNote;
+  final bool initialIsClean;
+  final String? initialEndReason;
   final DateTime Function()? clockUtc;
 
   const FastEditorSheet({
@@ -52,10 +58,12 @@ class FastEditorSheet extends StatefulWidget {
     this.recordId,
     required this.initialProtocolId,
     required this.initialTargetDurationMin,
-    required this.initialStartTimeUtcMs,
+    this.initialStartTimeUtcMs,
     this.initialEndTimeUtcMs,
     this.initialMood,
     this.initialNote,
+    this.initialIsClean = true,
+    this.initialEndReason,
     this.clockUtc,
   });
 
@@ -66,10 +74,12 @@ class FastEditorSheet extends StatefulWidget {
     String? recordId,
     required String initialProtocolId,
     required int initialTargetDurationMin,
-    required int initialStartTimeUtcMs,
+    int? initialStartTimeUtcMs,
     int? initialEndTimeUtcMs,
     String? initialMood,
     String? initialNote,
+    bool initialIsClean = true,
+    String? initialEndReason,
     DateTime Function()? clockUtc,
   }) {
     return showModalBottomSheet<FastEditorResult>(
@@ -86,6 +96,8 @@ class FastEditorSheet extends StatefulWidget {
         initialEndTimeUtcMs: initialEndTimeUtcMs,
         initialMood: initialMood,
         initialNote: initialNote,
+        initialIsClean: initialIsClean,
+        initialEndReason: initialEndReason,
         clockUtc: clockUtc,
       ),
     );
@@ -102,9 +114,12 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
 
   late String _protocolId;
   late int _targetDurationMin;
-  late int _startTimeUtcMs;
+  late int? _startTimeUtcMs;
   late int? _endTimeUtcMs;
   String? _mood;
+  late bool _isClean;
+  String? _endReason;
+  late bool _showNoteField;
   late TextEditingController _noteController;
 
   String? _validationError;
@@ -123,10 +138,17 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
     _targetDurationMin = widget.initialTargetDurationMin;
     _startTimeUtcMs = widget.initialStartTimeUtcMs;
     _endTimeUtcMs = _showsEndTime
-        ? (widget.initialEndTimeUtcMs ?? _nowUtc.millisecondsSinceEpoch)
+        ? (widget.initialEndTimeUtcMs ??
+            (widget.mode == FastEditorMode.addPast
+                ? null
+                : _nowUtc.millisecondsSinceEpoch))
         : null;
     _mood = widget.initialMood;
-    _noteController = TextEditingController(text: widget.initialNote ?? '');
+    _isClean = widget.initialIsClean;
+    _endReason = widget.initialEndReason;
+    final initialNote = widget.initialNote ?? '';
+    _showNoteField = initialNote.trim().isNotEmpty;
+    _noteController = TextEditingController(text: initialNote);
     _runLiveValidation();
   }
 
@@ -137,6 +159,17 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
   }
 
   Future<void> _runLiveValidation() async {
+    final startMs = _startTimeUtcMs;
+    final endMs = _endTimeUtcMs;
+    if (startMs == null || (_showsEndTime && endMs == null)) {
+      if (!mounted) return;
+      setState(() {
+        _validationError = null;
+        _isValidating = false;
+      });
+      return;
+    }
+
     setState(() {
       _isValidating = true;
     });
@@ -144,21 +177,20 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
     final nowMs = _nowUtc.millisecondsSinceEpoch;
     String? error;
 
-    if (_startTimeUtcMs > nowMs) {
+    if (startMs > nowMs) {
       error = 'Start time cannot be in the future.';
-    } else if (_showsEndTime && _endTimeUtcMs != null) {
-      if (_endTimeUtcMs! > nowMs) {
+    } else if (_showsEndTime && endMs != null) {
+      if (endMs > nowMs) {
         error = 'End time cannot be in the future.';
-      } else if (_endTimeUtcMs! <
-          _startTimeUtcMs + DatabaseService.minCompletedFastDurationMs) {
+      } else if (endMs < startMs + DatabaseService.minCompletedFastDurationMs) {
         error = DatabaseService.minCompletedFastDurationError;
       }
     }
 
     if (error == null) {
       final conflict = await widget.databaseService.findOverlappingRecord(
-        candidateStartMs: _startTimeUtcMs,
-        candidateEndMs: _showsEndTime ? _endTimeUtcMs : null,
+        candidateStartMs: startMs,
+        candidateEndMs: _showsEndTime ? endMs : null,
         nowUtcMs: nowMs,
         excludeId: widget.recordId,
       );
@@ -183,8 +215,14 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
   }
 
   Future<void> _pickDateTime({required bool isStart}) async {
-    final currentMs =
-        isStart ? _startTimeUtcMs : (_endTimeUtcMs ?? _nowUtc.millisecondsSinceEpoch);
+    final nowMs = _nowUtc.millisecondsSinceEpoch;
+    final int currentMs;
+    if (isStart) {
+      currentMs = _startTimeUtcMs ??
+          ((_endTimeUtcMs ?? nowMs) - _targetDurationMin * 60000);
+    } else {
+      currentMs = _endTimeUtcMs ?? nowMs;
+    }
     final currentLocal =
         DateTime.fromMillisecondsSinceEpoch(currentMs, isUtc: true).toLocal();
 
@@ -224,7 +262,7 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
       FastEditorResult(
         protocolId: _protocolId,
         targetDurationMin: _targetDurationMin,
-        startTimeUtcMs: _startTimeUtcMs,
+        startTimeUtcMs: _startTimeUtcMs ?? 0,
         endTimeUtcMs: _endTimeUtcMs,
         deleteRequested: true,
       ),
@@ -234,7 +272,8 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
   Widget _buildTimePanel(
     ThemeData theme, {
     required String label,
-    required DateTime localTime,
+    required DateTime? localTime,
+    String placeholder = 'Not set',
     VoidCallback? onTap,
   }) {
     final content = Padding(
@@ -253,23 +292,31 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _panelTimeFmt.format(localTime),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                if (localTime != null)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _panelTimeFmt.format(localTime),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    Text(
-                      _panelDateFmt.format(localTime).toUpperCase(),
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                      Text(
+                        _panelDateFmt.format(localTime).toUpperCase(),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
+                    ],
+                  )
+                else
+                  Text(
+                    placeholder,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
-                  ],
-                ),
+                  ),
               ],
             ),
           ),
@@ -345,16 +392,21 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
       _protocolId,
       customDurationMin: _targetDurationMin,
     );
-    final startLocal =
-        DateTime.fromMillisecondsSinceEpoch(_startTimeUtcMs, isUtc: true)
-            .toLocal();
+    final startLocal = _startTimeUtcMs != null
+        ? DateTime.fromMillisecondsSinceEpoch(_startTimeUtcMs!, isUtc: true)
+            .toLocal()
+        : null;
     final endLocal = _endTimeUtcMs != null
         ? DateTime.fromMillisecondsSinceEpoch(_endTimeUtcMs!, isUtc: true)
             .toLocal()
         : null;
-    final actualDurationMs =
-        (_endTimeUtcMs ?? _nowUtc.millisecondsSinceEpoch) - _startTimeUtcMs;
-    final metGoal = actualDurationMs >= _targetDurationMin * 60000;
+    final hasRequiredTimes =
+        _startTimeUtcMs != null && (!_showsEndTime || _endTimeUtcMs != null);
+    final canSave =
+        hasRequiredTimes && _validationError == null && !_isValidating;
+    final metGoal = !hasRequiredTimes ||
+        ((_endTimeUtcMs ?? _nowUtc.millisecondsSinceEpoch) - _startTimeUtcMs!) >=
+            _targetDurationMin * 60000;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -390,7 +442,7 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
               const SizedBox(height: 12),
               if (isEditOngoing) ...[
                 TumblerDateTimePicker(
-                  initialDateTimeLocal: startLocal,
+                  initialDateTimeLocal: startLocal ?? _nowUtc.toLocal(),
                   onChanged: (pickedLocal) {
                     setState(() {
                       _startTimeUtcMs = pickedLocal.toUtc().millisecondsSinceEpoch;
@@ -417,11 +469,12 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                   clipBehavior: Clip.antiAlias,
                   child: Column(
                     children: [
-                      _buildTimePanel(
-                        theme,
-                        label: 'Start Time',
-                        localTime: startLocal,
-                      ),
+                      if (startLocal != null)
+                        _buildTimePanel(
+                          theme,
+                          label: 'Start Time',
+                          localTime: startLocal,
+                        ),
                       if (endLocal != null) ...[
                         const Divider(height: 1),
                         _buildTimePanel(
@@ -437,58 +490,86 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                 const SizedBox(height: 8),
                 _buildValidationSlot(theme),
               ] else ...[
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: theme.colorScheme.outlineVariant),
+                Text(
+                  'Target Hours',
+                  style: theme.textTheme.labelLarge,
+                ),
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final preset in FastProtocol.presets) ...[
+                        ChoiceChip(
+                          label: Text('${preset.targetDurationMin ~/ 60}h'),
+                          selected: _protocolId == preset.id,
+                          onSelected: (_) {
+                            setState(() {
+                              _protocolId = preset.id;
+                              _targetDurationMin = preset.targetDurationMin;
+                            });
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      ChoiceChip(
+                        label: Text(
+                          _protocolId == 'custom'
+                              ? protocol.label
+                              : 'Custom',
+                        ),
+                        selected: _protocolId == 'custom',
+                        onSelected: (_) async {
+                          final picked = await ProtocolPicker.show(
+                            context,
+                            selectedProtocolId: _protocolId,
+                            currentCustomDurationMin: _targetDurationMin,
+                          );
+                          if (picked != null) {
+                            setState(() {
+                              _protocolId = picked.protocolId;
+                              _targetDurationMin = picked.targetDurationMin;
+                            });
+                          }
+                        },
+                      ),
+                    ],
                   ),
-                  leading: const Icon(Icons.timer_outlined),
-                  title: const Text('Protocol'),
-                  subtitle: Text(protocol.label),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () async {
-                    final picked = await ProtocolPicker.show(
-                      context,
-                      selectedProtocolId: _protocolId,
-                      currentCustomDurationMin: _targetDurationMin,
-                    );
-                    if (picked != null) {
-                      setState(() {
-                        _protocolId = picked.protocolId;
-                        _targetDurationMin = picked.targetDurationMin;
-                      });
-                    }
-                  },
                 ),
                 const SizedBox(height: 10),
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: theme.colorScheme.outlineVariant),
-                  ),
-                  leading: const Icon(Icons.play_circle_outline_rounded),
-                  title: const Text('Start Time'),
-                  subtitle: Text(_dateTimeFmt.format(startLocal)),
-                  trailing: const Icon(Icons.edit_calendar_rounded),
-                  onTap: () => _pickDateTime(isStart: true),
-                ),
-                if (_showsEndTime && endLocal != null) ...[
-                  const SizedBox(height: 10),
-                  ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: theme.colorScheme.outlineVariant),
+                Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: theme.colorScheme.outlineVariant
+                          .withValues(alpha: 0.5),
                     ),
-                    leading: const Icon(Icons.stop_circle_outlined),
-                    title: const Text('End Time'),
-                    subtitle: Text(_dateTimeFmt.format(endLocal)),
-                    trailing: const Icon(Icons.edit_calendar_rounded),
-                    onTap: () => _pickDateTime(isStart: false),
                   ),
-                ],
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      _buildTimePanel(
+                        theme,
+                        label: 'Start Time',
+                        localTime: startLocal,
+                        placeholder: 'Select start time',
+                        onTap: () => _pickDateTime(isStart: true),
+                      ),
+                      if (_showsEndTime) ...[
+                        const Divider(height: 1),
+                        _buildTimePanel(
+                          theme,
+                          label: 'End Time',
+                          localTime: endLocal,
+                          placeholder: 'Select end time',
+                          onTap: () => _pickDateTime(isStart: false),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ],
               if (_showsMoodAndNote &&
                   _validationError !=
@@ -523,22 +604,81 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                   ],
                 ),
                 const SizedBox(height: 14),
-                TextField(
-                  controller: _noteController,
-                  maxLength: 280,
-                  maxLines: 1,
-                  decoration: InputDecoration(
-                    labelText: 'Optional Note',
-                    hintText: 'Optional notes to yourself...',
-                    hintStyle: TextStyle(
-                      color: theme.colorScheme.onSurfaceVariant
-                          .withValues(alpha: 0.55),
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                Text(
+                  'Fast Quality',
+                  style: theme.textTheme.labelLarge,
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<bool>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(value: true, label: Text('Clean')),
+                      ButtonSegment(value: false, label: Text('Modified')),
+                    ],
+                    selected: {_isClean},
+                    onSelectionChanged: (selection) {
+                      setState(() {
+                        _isClean = selection.first;
+                      });
+                    },
                   ),
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  _isClean
+                      ? 'Zero calories — water, black coffee, or plain tea only.'
+                      : 'A tiny amount of calories (like milk in coffee or broth) — breaks a strict fast, but keeps daily calories low for fat loss.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (!metGoal) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    'Early-End Reason',
+                    style: theme.textTheme.labelLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      _buildEndReasonChip('hungry', 'Hungry'),
+                      _buildEndReasonChip('social', 'Social'),
+                      _buildEndReasonChip('unwell', 'Dizzy / Unwell'),
+                      _buildEndReasonChip('other', 'Other'),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 12),
+                if (!_showNoteField)
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _showNoteField = true;
+                      });
+                    },
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Add note'),
+                  )
+                else
+                  TextField(
+                    controller: _noteController,
+                    maxLength: 280,
+                    maxLines: 1,
+                    decoration: InputDecoration(
+                      labelText: 'Optional Note',
+                      hintText: 'Optional notes to yourself...',
+                      hintStyle: TextStyle(
+                        color: theme.colorScheme.onSurfaceVariant
+                            .withValues(alpha: 0.55),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
               ],
               if (!isCompleteActive) ...[
                 const SizedBox(height: 8),
@@ -561,19 +701,21 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                       child: SizedBox(
                         height: 48,
                         child: FilledButton(
-                          onPressed: (_validationError != null || _isValidating)
+                          onPressed: !canSave
                               ? null
                               : () {
                                   Navigator.of(context).pop(
                                     FastEditorResult(
                                       protocolId: _protocolId,
                                       targetDurationMin: _targetDurationMin,
-                                      startTimeUtcMs: _startTimeUtcMs,
+                                      startTimeUtcMs: _startTimeUtcMs!,
                                       endTimeUtcMs: _endTimeUtcMs,
                                       mood: _mood,
                                       note: _noteController.text.trim().isEmpty
                                           ? null
                                           : _noteController.text.trim(),
+                                      isClean: _isClean,
+                                      endReason: metGoal ? null : _endReason,
                                     ),
                                   );
                                 },
@@ -590,19 +732,21 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
                   width: double.infinity,
                   height: 48,
                   child: FilledButton(
-                    onPressed: (_validationError != null || _isValidating)
+                    onPressed: !canSave
                         ? null
                         : () {
                             Navigator.of(context).pop(
                               FastEditorResult(
                                 protocolId: _protocolId,
                                 targetDurationMin: _targetDurationMin,
-                                startTimeUtcMs: _startTimeUtcMs,
+                                startTimeUtcMs: _startTimeUtcMs!,
                                 endTimeUtcMs: _endTimeUtcMs,
                                 mood: _mood,
                                 note: _noteController.text.trim().isEmpty
                                     ? null
                                     : _noteController.text.trim(),
+                                isClean: _isClean,
+                                endReason: metGoal ? null : _endReason,
                               ),
                             );
                           },
@@ -624,6 +768,19 @@ class _FastEditorSheetState extends State<FastEditorSheet> {
       onSelected: (val) {
         setState(() {
           _mood = val ? key : null;
+        });
+      },
+    );
+  }
+
+  Widget _buildEndReasonChip(String key, String label) {
+    final selected = _endReason == key;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (val) {
+        setState(() {
+          _endReason = val ? key : null;
         });
       },
     );

@@ -11,6 +11,8 @@ FastRecord _makeRecord({
   int targetDurationMin = 960,
   String? mood,
   String? note,
+  bool isClean = true,
+  String? endReason,
 }) {
   final endUtcMs = endLocal.toUtc().millisecondsSinceEpoch;
   final startUtcMs = endUtcMs - durationMin * 60000;
@@ -22,6 +24,8 @@ FastRecord _makeRecord({
     targetDurationMin: targetDurationMin,
     mood: mood,
     note: note,
+    isClean: isClean,
+    endReason: endReason,
     createdAtMs: startUtcMs,
     updatedAtMs: endUtcMs,
   );
@@ -32,9 +36,7 @@ void main() {
   final nowUtc = nowLocal.toUtc();
 
   group('TimelineSnapshot', () {
-    test('keeps currentStreak and bestStreak global while scoping range KPIs',
-        () {
-      // 10 consecutive goal-met days ending yesterday (Nov 23)
+    test('computes global streaks, KPIs, and month headers', () {
       final history = <FastRecord>[
         for (int i = 1; i <= 10; i++)
           _makeRecord(
@@ -44,37 +46,38 @@ void main() {
           ),
       ];
 
-      final snap7d = TimelineSnapshot.build(
+      final snap = TimelineSnapshot.build(
         history: history,
         activeFast: null,
         nowUtc: nowUtc,
-        defaultTargetMin: 960,
-        range: TimelineRange.d7,
-        filter: TimelineFilter.all,
       );
 
-      expect(snap7d.currentStreak, 10);
-      expect(snap7d.bestStreak, 10);
-      // Today (Nov 24) has no fast, Nov 18..23 = 6 days inside last 7 days
-      expect(snap7d.totalFastsInRange, 6);
-      expect(snap7d.goalMetCountInRange, 6);
-      expect(snap7d.completionPercentInRange, 100);
-      expect(snap7d.chartBuckets.length, 7);
-      // Filter counts & items are also scoped to 7D (1 month header + 6 records)
-      expect(snap7d.allCount, 6);
-      expect(snap7d.goalMetCount, 6);
-      expect(snap7d.items.length, 7);
+      expect(snap.currentStreak, 10);
+      expect(snap.bestStreak, 10);
+      expect(snap.totalCompletedFasts, 10);
+      expect(snap.goalMetCount, 10);
+      expect(snap.goalMetPercent, 100);
       expect(
-        snap7d.allTimeAverageDuration,
+        snap.allTimeAverageDuration,
         const Duration(hours: 16, minutes: 15),
       );
+      expect(snap.monthTitle, 'November 2026');
+      expect(snap.calendarDays.length, 30);
+      expect(snap.items.length, 11); // 1 month header + 10 records
     });
 
     test('computes bestStreak separately when currentStreak is broken', () {
-      // Old 4-day streak in Oct, broken, plus 2-day streak ending today
       final history = <FastRecord>[
-        _makeRecord(id: 'c1', endLocal: DateTime(2026, 11, 24, 9, 0), durationMin: 960),
-        _makeRecord(id: 'c2', endLocal: DateTime(2026, 11, 23, 9, 0), durationMin: 960),
+        _makeRecord(
+          id: 'c1',
+          endLocal: DateTime(2026, 11, 24, 9, 0),
+          durationMin: 960,
+        ),
+        _makeRecord(
+          id: 'c2',
+          endLocal: DateTime(2026, 11, 23, 9, 0),
+          durationMin: 960,
+        ),
         for (int i = 1; i <= 4; i++)
           _makeRecord(
             id: 'old_$i',
@@ -87,18 +90,13 @@ void main() {
         history: history,
         activeFast: null,
         nowUtc: nowUtc,
-        defaultTargetMin: 960,
-        range: TimelineRange.d7,
-        filter: TimelineFilter.all,
       );
 
       expect(snap.currentStreak, 2);
       expect(snap.bestStreak, 4);
     });
 
-    test('selects best single fast on multi-fast day without summing durations',
-        () {
-      // Same calendar day (Nov 23): 5h early fast at 1 AM + 14h goal-met 14:10 fast at 11 PM
+    test('calendar uses daily-best-fast precedence and active-only today', () {
       final earlyFast = _makeRecord(
         id: 'early',
         endLocal: DateTime(2026, 11, 23, 1, 0),
@@ -113,131 +111,126 @@ void main() {
         protocolId: '14_10',
         targetDurationMin: 840,
       );
+      final activeToday = FastRecord(
+        id: 'active',
+        protocolId: '16_8',
+        startTimeMs: DateTime(2026, 11, 24, 8, 0).toUtc().millisecondsSinceEpoch,
+        endTimeMs: null,
+        targetDurationMin: 960,
+        createdAtMs: 0,
+        updatedAtMs: 0,
+      );
 
       final snap = TimelineSnapshot.build(
         history: [goalFast, earlyFast],
-        activeFast: null,
+        activeFast: activeToday,
         nowUtc: nowUtc,
-        defaultTargetMin: 960,
-        range: TimelineRange.d7,
-        filter: TimelineFilter.all,
       );
 
-      final nov23Bucket = snap.chartBuckets[5]; // index 6 is today (Nov 24)
-      expect(nov23Bucket.status, DayFastStatus.goalMet);
-      expect(nov23Bucket.primaryRecord?.id, 'goal');
-      expect(nov23Bucket.recordCount, 2);
-      expect(nov23Bucket.duration, const Duration(hours: 14, minutes: 20));
+      final nov23 = snap.calendarDays[22];
+      expect(nov23.dayNumber, 23);
+      expect(nov23.status, CalendarDayStatus.goalMet);
+      expect(nov23.durationLabel, '14h 20m');
+      expect(nov23.tooltipLabel, '14h 20m · Goal Met');
+
+      final nov24 = snap.calendarDays[23];
+      expect(nov24.dayNumber, 24);
+      expect(nov24.isToday, isTrue);
+      expect(nov24.hasActiveFast, isTrue);
+      expect(nov24.status, CalendarDayStatus.none);
+      expect(nov24.tooltipLabel, 'Active');
     });
 
-    test('builds weekly-average buckets in All mode with primaryRecord == null',
+    test('formats 3-line record items, excess, shortfall, and late-night start',
         () {
-      final history = <FastRecord>[
-        _makeRecord(
-          id: 'w1',
-          endLocal: DateTime(2026, 11, 23, 10, 0),
-          durationMin: 17 * 60,
-        ),
-        _makeRecord(
-          id: 'w2',
-          endLocal: DateTime(2026, 11, 22, 10, 0),
-          durationMin: 10 * 60,
-        ),
-      ];
+      // Started Nov 22 at 11:30 PM -> ended Nov 23 at 3:56 PM (16h 26m)
+      final m1 = _makeRecord(
+        id: 'm1',
+        endLocal: DateTime(2026, 11, 23, 15, 56),
+        durationMin: 16 * 60 + 26,
+        isClean: false,
+        note: 'Black coffee',
+      );
+      // Started Nov 21 at 7:13 PM -> ended Nov 22 at 5:56 AM (10h 43m of 14h)
+      final m2 = _makeRecord(
+        id: 'm2',
+        endLocal: DateTime(2026, 11, 22, 5, 56),
+        durationMin: 10 * 60 + 43,
+        protocolId: '14_10',
+        targetDurationMin: 840,
+        endReason: 'hungry',
+      );
 
+      // Bedtime at 12:30 AM (30 min past midnight): 11:30 PM is 60m before bedtime (late-night)
       final snap = TimelineSnapshot.build(
-        history: history,
+        history: [m1, m2],
         activeFast: null,
         nowUtc: nowUtc,
-        defaultTargetMin: 960,
-        range: TimelineRange.all,
-        filter: TimelineFilter.all,
+        bedtimeMinutesOfDay: 30,
       );
 
-      expect(snap.chartBuckets.length, 4);
-      final currentWeek = snap.chartBuckets.last;
-      expect(currentWeek.isWeekly, isTrue);
-      expect(currentWeek.primaryRecord, isNull);
-      expect(currentWeek.recordCount, 2);
-      expect(currentWeek.goalMetCount, 1);
-      // 1/2 met => 50% met, colors goalMet even though avg 13.5h < 16h
-      expect(currentWeek.status, DayFastStatus.goalMet);
-      expect(currentWeek.duration, const Duration(hours: 13, minutes: 30));
-    });
-
-    test('builds month headers, filter counts, deltas, and metabolic stages',
-        () {
-      final history = <FastRecord>[
-        _makeRecord(
-          id: 'm1',
-          endLocal: DateTime(2026, 11, 23, 11, 7),
-          durationMin: 16 * 60 + 26,
-          mood: 'great',
-          note: 'Felt great',
-        ),
-        _makeRecord(
-          id: 'm2',
-          endLocal: DateTime(2026, 11, 22, 5, 56),
-          durationMin: 10 * 60 + 43,
-          protocolId: '14_10',
-          targetDurationMin: 840,
-          mood: 'bad',
-        ),
-        _makeRecord(
-          id: 'm3',
-          endLocal: DateTime(2026, 10, 30, 12, 0),
-          durationMin: 19 * 60,
-        ),
-      ];
-
-      final snapAll = TimelineSnapshot.build(
-        history: history,
-        activeFast: null,
-        nowUtc: nowUtc,
-        defaultTargetMin: 960,
-        range: TimelineRange.d30,
-        filter: TimelineFilter.all,
-      );
-
-      expect(snapAll.allCount, 3);
-      expect(snapAll.goalMetCount, 2);
-      expect(snapAll.endedEarlyCount, 1);
-      expect(snapAll.withNotesCount, 1);
-
-      // Nov header + 2 rows + Oct header + 1 row = 5 items
-      expect(snapAll.items.length, 5);
-      final novHeader = snapAll.items[0] as TimelineMonthHeader;
+      expect(snap.items.length, 3);
+      final novHeader = snap.items[0] as TimelineMonthHeader;
       expect(novHeader.title, 'NOVEMBER 2026');
       expect(novHeader.fastCount, 2);
       expect(novHeader.goalMetPercent, 50);
 
-      final firstRow = snapAll.items[1] as TimelineRecordItem;
-      expect(firstRow.dateStampLabel, 'NOV 23 • MON');
-      expect(firstRow.endTimeLabel, '11:07 AM');
-      expect(firstRow.startTimeLabel, '6:41 PM');
-      expect(firstRow.deltaLabel, '+26m');
-      expect(firstRow.metabolicStage.id, 'ketosis');
+      final row1 = snap.items[1] as TimelineRecordItem;
+      expect(row1.startDateLabel, 'NOV 22');
+      expect(row1.weekdayLabel, 'SUN');
+      expect(row1.patternTag, '16:8');
+      expect(row1.baseDurationLabel, '16h 00m');
+      expect(row1.excessLabel, '+26m');
+      expect(row1.shortfallLabel, isNull);
+      expect(row1.isClean, isFalse);
+      expect(row1.isLateNightStart, isTrue);
+      expect(row1.endReasonLabel, isNull);
 
-      final secondRow = snapAll.items[2] as TimelineRecordItem;
-      expect(secondRow.deltaLabel, '-3h 17m');
-      expect(secondRow.metabolicStage.id, 'fat_burning');
+      final row2 = snap.items[2] as TimelineRecordItem;
+      expect(row2.startDateLabel, 'NOV 21');
+      expect(row2.weekdayLabel, 'SAT');
+      expect(row2.patternTag, '14:10');
+      expect(row2.baseDurationLabel, '10h 43m');
+      expect(row2.excessLabel, isNull);
+      expect(row2.shortfallLabel, '-3h 17m');
+      expect(row2.isClean, isTrue);
+      expect(row2.isLateNightStart, isFalse);
+      expect(row2.endReasonLabel, 'Hungry');
+    });
 
-      final octRow = snapAll.items[4] as TimelineRecordItem;
-      expect(
-        TimelineSnapshot.shortStageLabel(octRow.metabolicStage),
-        'Autophagy',
+    test('buildLastSevenDays returns 7 days with active today fallback', () {
+      final history = [
+        _makeRecord(
+          id: 'd3',
+          endLocal: DateTime(2026, 11, 21, 10, 0),
+          durationMin: 960,
+        ),
+        _makeRecord(
+          id: 'd1',
+          endLocal: DateTime(2026, 11, 23, 10, 0),
+          durationMin: 600,
+        ),
+      ];
+      final active = FastRecord(
+        id: 'act',
+        protocolId: '16_8',
+        startTimeMs: nowUtc.subtract(const Duration(hours: 2)).millisecondsSinceEpoch,
+        endTimeMs: null,
+        targetDurationMin: 960,
+        createdAtMs: 0,
+        updatedAtMs: 0,
       );
 
-      final snapNotes = TimelineSnapshot.build(
+      final days = TimelineSnapshot.buildLastSevenDays(
         history: history,
-        activeFast: null,
+        activeFast: active,
         nowUtc: nowUtc,
-        defaultTargetMin: 960,
-        range: TimelineRange.d30,
-        filter: TimelineFilter.withNotes,
       );
-      expect(snapNotes.allCount, 3);
-      expect(snapNotes.items.length, 2); // Nov header + m1
+      expect(days.length, 7);
+      expect(days[6].status, DayFastStatus.active);
+      expect(days[5].status, DayFastStatus.completedBelowGoal);
+      expect(days[4].status, DayFastStatus.none);
+      expect(days[3].status, DayFastStatus.goalMet);
     });
   });
 }

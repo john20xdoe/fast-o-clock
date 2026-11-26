@@ -1,41 +1,34 @@
 import 'dart:math' as math;
 
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../state/fasting_controller.dart';
 import 'fast_protocol.dart';
 import 'fast_record.dart';
-import 'metabolic_stage.dart';
 
-enum TimelineRange { d7, d30, all }
+const Color goalMetColor = Color(0xFF00C853);
+const Color endedEarlyColor = Color(0xFFFF8A00);
 
-enum TimelineFilter { all, goalMet, endedEarly, withNotes }
+enum CalendarDayStatus { none, goalMet, endedEarly }
 
-class ChartBarBucket {
-  final DateTime startDateLocal;
-  final DateTime endDateLocal;
-  final String axisLabel;
-  final String readoutLabel;
-  final Duration duration;
-  final DayFastStatus status;
-  final FastRecord? primaryRecord;
-  final int recordCount;
-  final int goalMetCount;
+class CalendarDaySummary {
+  final DateTime date;
+  final int dayNumber;
+  final CalendarDayStatus status;
+  final String? durationLabel;
   final bool isToday;
-  final bool isWeekly;
+  final bool hasActiveFast;
+  final String tooltipLabel;
 
-  const ChartBarBucket({
-    required this.startDateLocal,
-    required this.endDateLocal,
-    required this.axisLabel,
-    required this.readoutLabel,
-    required this.duration,
+  const CalendarDaySummary({
+    required this.date,
+    required this.dayNumber,
     required this.status,
-    required this.primaryRecord,
-    required this.recordCount,
-    required this.goalMetCount,
+    required this.durationLabel,
     required this.isToday,
-    required this.isWeekly,
+    required this.hasActiveFast,
+    required this.tooltipLabel,
   });
 }
 
@@ -62,82 +55,69 @@ class TimelineMonthHeader extends TimelineListItem {
 class TimelineRecordItem extends TimelineListItem {
   final FastRecord record;
   final FastProtocol protocol;
-  final MetabolicStage metabolicStage;
-  final String dateStampLabel;
-  final String endTimeLabel;
-  final String startTimeLabel;
-  final String durationLabel;
-  final String deltaLabel;
-  final double progressRatio;
+  final String startDateLabel;
+  final String weekdayLabel;
+  final String patternTag;
+  final String baseDurationLabel;
+  final String? excessLabel;
+  final String? shortfallLabel;
+  final String timeWindowLabel;
   final bool isGoalMet;
+  final bool isClean;
+  final bool isLateNightStart;
+  final String? endReasonLabel;
   final bool hasNote;
   final String semanticLabel;
 
   const TimelineRecordItem({
     required this.record,
     required this.protocol,
-    required this.metabolicStage,
-    required this.dateStampLabel,
-    required this.endTimeLabel,
-    required this.startTimeLabel,
-    required this.durationLabel,
-    required this.deltaLabel,
-    required this.progressRatio,
+    required this.startDateLabel,
+    required this.weekdayLabel,
+    required this.patternTag,
+    required this.baseDurationLabel,
+    required this.excessLabel,
+    required this.shortfallLabel,
+    required this.timeWindowLabel,
     required this.isGoalMet,
+    required this.isClean,
+    required this.isLateNightStart,
+    required this.endReasonLabel,
     required this.hasNote,
     required this.semanticLabel,
   });
 }
 
 class TimelineSnapshot {
-  static final DateFormat _dayHeaderThisYearFmt = DateFormat('EEE, MMM d');
-  static final DateFormat _panelDateThisYearFmt = DateFormat('MMM d • EEE');
-  static final DateFormat _panelDateOtherYearFmt =
-      DateFormat('MMM d yyyy • EEE');
+  static final DateFormat _shortDateFmt = DateFormat('MMM d');
+  static final DateFormat _shortDateWithYearFmt = DateFormat('MMM d yyyy');
+  static final DateFormat _weekdayFmt = DateFormat('EEE');
   static final DateFormat _shortTimeFmt = DateFormat('h:mm a');
   static final DateFormat _monthHeaderFmt = DateFormat('MMMM yyyy');
-  static final DateFormat _monthDayShortFmt = DateFormat('MMM d');
-  static final DateFormat _weekdayLetterFmt = DateFormat('E');
+  static final DateFormat _calendarMonthFmt = DateFormat('MMMM yyyy');
 
   final int currentStreak;
   final int bestStreak;
-
-  final TimelineRange range;
-  final int totalFastsInRange;
-  final int goalMetCountInRange;
-  final int completionPercentInRange;
-  final Duration averageDurationInRange;
-  final Duration longestDurationInRange;
+  final int totalCompletedFasts;
+  final int goalMetCount;
+  final int goalMetPercent;
   final Duration allTimeAverageDuration;
 
-  final int allCount;
-  final int goalMetCount;
-  final int endedEarlyCount;
-  final int withNotesCount;
-
-  final List<ChartBarBucket> chartBuckets;
-  final int defaultTargetMin;
-  final double maxChartHours;
-
+  final DateTime visibleMonth;
+  final String monthTitle;
+  final List<CalendarDaySummary> calendarDays;
   final List<TimelineListItem> items;
 
   const TimelineSnapshot({
     required this.currentStreak,
     required this.bestStreak,
-    required this.range,
-    required this.totalFastsInRange,
-    required this.goalMetCountInRange,
-    required this.completionPercentInRange,
-    required this.averageDurationInRange,
-    required this.longestDurationInRange,
-    required this.allTimeAverageDuration,
-    required this.allCount,
+    required this.totalCompletedFasts,
     required this.goalMetCount,
-    required this.endedEarlyCount,
-    required this.withNotesCount,
-    required this.chartBuckets,
-    required this.defaultTargetMin,
-    required this.maxChartHours,
+    required this.goalMetPercent,
+    required this.allTimeAverageDuration,
+    required this.visibleMonth,
+    required this.monthTitle,
+    required this.calendarDays,
     required this.items,
   });
 
@@ -165,58 +145,73 @@ class TimelineSnapshot {
     return '$sign${h}h ${m}m';
   }
 
-  static String shortStageLabel(MetabolicStage stage) {
-    if (stage.id == 'autophagy') return 'Autophagy';
-    return stage.title;
+  static String formatPatternTag(FastProtocol protocol) {
+    switch (protocol.id) {
+      case '14_10':
+        return '14:10';
+      case '16_8':
+        return '16:8';
+      case '18_6':
+        return '18:6';
+      case '20_4':
+        return '20:4';
+      case '23_1':
+        return '23:1';
+      case '36_0':
+        return '36h';
+      default:
+        return formatHoursShort(protocol.targetDurationMin);
+    }
+  }
+
+  static String? formatEndReasonLabel(String? endReason) {
+    switch (endReason) {
+      case 'hungry':
+        return 'Hungry';
+      case 'social':
+        return 'Social';
+      case 'unwell':
+        return 'Dizzy / Unwell';
+      case 'other':
+        return 'Other';
+      default:
+        return null;
+    }
+  }
+
+  static bool isLateNightStartMinute({
+    required int startMinuteOfDay,
+    required int? bedtimeMinutesOfDay,
+  }) {
+    if (bedtimeMinutesOfDay == null) return false;
+    final delta = (startMinuteOfDay - bedtimeMinutesOfDay + 1440) % 1440;
+    return delta >= 1320 || delta <= 240;
   }
 
   factory TimelineSnapshot.build({
     required List<FastRecord> history,
     required FastRecord? activeFast,
     required DateTime nowUtc,
-    required int defaultTargetMin,
-    required TimelineRange range,
-    required TimelineFilter filter,
+    DateTime? visibleMonth,
+    int? bedtimeMinutesOfDay,
   }) {
     final nowLocal = nowUtc.toLocal();
     final today = DateTime(nowLocal.year, nowLocal.month, nowLocal.day);
     final yesterday = DateTime(today.year, today.month, today.day - 1);
+    final targetMonth = visibleMonth != null
+        ? DateTime(visibleMonth.year, visibleMonth.month, 1)
+        : DateTime(today.year, today.month, 1);
 
-    final rangeStartDay = switch (range) {
-      TimelineRange.d7 => DateTime(today.year, today.month, today.day - 6),
-      TimelineRange.d30 => DateTime(today.year, today.month, today.day - 29),
-      TimelineRange.all => null,
-    };
-
-    // Sort descending by endTimeMs (falls back to startTimeMs) so month grouping
-    // stays contiguous even if callers supply unsorted test records.
     final sorted = history.where((r) => r.endTimeMs != null).toList()
       ..sort((a, b) => b.endTimeMs!.compareTo(a.endTimeMs!));
 
     final qualifyingDays = <DateTime>{};
-    final dayBestMap =
-        <DateTime, ({FastRecord best, int count, int goalMetCount})>{};
+    final dayBestMap = <DateTime, FastRecord>{};
 
     int allTimeCount = 0;
+    int allTimeGoalMet = 0;
     int allTimeTotalMs = 0;
 
-    int allCount = 0;
-    int goalMetCount = 0;
-    int endedEarlyCount = 0;
-    int withNotesCount = 0;
-
-    int rangeTotalCount = 0;
-    int rangeGoalMetCount = 0;
-    int rangeTotalMs = 0;
-    int rangeLongestMs = 0;
-
-    const maxWeeks = 12;
-    final weekTotalMs = List<int>.filled(maxWeeks, 0);
-    final weekCounts = List<int>.filled(maxWeeks, 0);
-    final weekGoalMet = List<int>.filled(maxWeeks, 0);
-    final todayUtcDay = DateTime.utc(today.year, today.month, today.day);
-
-    // Month buckets preserve insertion order (descending by endTimeMs).
     final monthOrder = <(int, int)>[];
     final monthRecords = <(int, int), List<TimelineRecordItem>>{};
     final monthStats = <(int, int), ({int goalMet, int totalMs})>{};
@@ -230,103 +225,97 @@ class TimelineSnapshot {
       final isGoalMet = record.isGoalMet;
       final hasNote = record.note != null && record.note!.trim().isNotEmpty;
 
-      // Global all-time accumulators (unclipped by range selector).
       allTimeCount++;
       allTimeTotalMs += elapsedMs;
       if (isGoalMet) {
+        allTimeGoalMet++;
         qualifyingDays.add(endDay);
       }
 
-      final endUtcDay = DateTime.utc(endDay.year, endDay.month, endDay.day);
-      final daysAgo = todayUtcDay.difference(endUtcDay).inDays;
-      if (daysAgo >= 0 && daysAgo < maxWeeks * 7) {
-        final weekIdx = daysAgo ~/ 7;
-        weekTotalMs[weekIdx] += elapsedMs;
-        weekCounts[weekIdx]++;
-        if (isGoalMet) weekGoalMet[weekIdx]++;
-      }
-
-      // Single-best-fast selection per calendar day for daily chart buckets.
-      final existingDay = dayBestMap[endDay];
-      if (existingDay == null) {
-        dayBestMap[endDay] = (
-          best: record,
-          count: 1,
-          goalMetCount: isGoalMet ? 1 : 0,
-        );
+      // Daily-best-fast precedence: goalMet > endedEarly, then longest duration.
+      final existingBest = dayBestMap[endDay];
+      if (existingBest == null) {
+        dayBestMap[endDay] = record;
       } else {
-        final bestIsGoal = existingDay.best.isGoalMet;
+        final bestIsGoal = existingBest.isGoalMet;
         final bestElapsedMs =
-            existingDay.best.endTimeMs! - existingDay.best.startTimeMs;
+            existingBest.endTimeMs! - existingBest.startTimeMs;
         final candidateWins = (isGoalMet && !bestIsGoal) ||
             (isGoalMet == bestIsGoal && elapsedMs > bestElapsedMs);
-        dayBestMap[endDay] = (
-          best: candidateWins ? record : existingDay.best,
-          count: existingDay.count + 1,
-          goalMetCount: existingDay.goalMetCount + (isGoalMet ? 1 : 0),
-        );
+        if (candidateWins) {
+          dayBestMap[endDay] = record;
+        }
       }
-
-      // Scope filter counts, KPIs, and history list to the selected range.
-      final inRange = rangeStartDay == null || !endDay.isBefore(rangeStartDay);
-      if (!inRange) continue;
-
-      allCount++;
-      rangeTotalCount++;
-      if (isGoalMet) {
-        goalMetCount++;
-        rangeGoalMetCount++;
-      } else {
-        endedEarlyCount++;
-      }
-      if (hasNote) {
-        withNotesCount++;
-      }
-      rangeTotalMs += elapsedMs;
-      if (elapsedMs > rangeLongestMs) rangeLongestMs = elapsedMs;
-
-      final matchesFilter = switch (filter) {
-        TimelineFilter.all => true,
-        TimelineFilter.goalMet => isGoalMet,
-        TimelineFilter.endedEarly => !isGoalMet,
-        TimelineFilter.withNotes => hasNote,
-      };
-      if (!matchesFilter) continue;
 
       final protocol = FastProtocol.resolve(
         record.protocolId,
         customDurationMin: record.targetDurationMin,
       );
-      final stage = MetabolicStage.forElapsedDuration(elapsed);
-      final dateStampLabel = (endLocal.year == nowLocal.year
-              ? _panelDateThisYearFmt.format(endLocal)
-              : _panelDateOtherYearFmt.format(endLocal))
+      final startDateLabel = (startLocal.year == nowLocal.year
+              ? _shortDateFmt.format(startLocal)
+              : _shortDateWithYearFmt.format(startLocal))
           .toUpperCase();
-      final endTimeLabel = _shortTimeFmt.format(endLocal);
-      final startTimeLabel = _shortTimeFmt.format(startLocal);
-      final durationLabel = formatDuration(elapsed);
-      final deltaLabel = formatDelta(elapsed, record.targetDurationMin);
-      final targetMs = record.targetDurationMin * 60000.0;
-      final progressRatio =
-          targetMs > 0 ? (elapsedMs / targetMs).clamp(0.0, 1.0) : 1.0;
+      final weekdayLabel = _weekdayFmt.format(startLocal).toUpperCase();
+      final patternTag = formatPatternTag(protocol);
 
-      final moodLabel = record.mood != null ? ', mood ${record.mood}' : '';
-      final noteLabel = hasNote ? ', note: ${record.note!.trim()}' : '';
+      final diffMin = elapsed.inMinutes - record.targetDurationMin;
+      final String baseDurationLabel;
+      final String? excessLabel;
+      final String? shortfallLabel;
+      final String durationSemantics;
+
+      if (diffMin > 0) {
+        baseDurationLabel =
+            formatDuration(Duration(minutes: record.targetDurationMin));
+        excessLabel = formatDelta(elapsed, record.targetDurationMin);
+        shortfallLabel = null;
+        durationSemantics = '$baseDurationLabel, $excessLabel past goal';
+      } else if (diffMin < 0) {
+        baseDurationLabel = formatDuration(elapsed);
+        excessLabel = null;
+        shortfallLabel = formatDelta(elapsed, record.targetDurationMin);
+        durationSemantics = '$baseDurationLabel, $shortfallLabel short of goal';
+      } else {
+        baseDurationLabel = formatDuration(elapsed);
+        excessLabel = null;
+        shortfallLabel = null;
+        durationSemantics = '$baseDurationLabel, goal met';
+      }
+
+      final startTimeStr = _shortTimeFmt.format(startLocal);
+      final endTimeStr = _shortTimeFmt.format(endLocal);
+      final timeWindowLabel = '$startTimeStr – $endTimeStr';
+
+      final isLateNight = isLateNightStartMinute(
+        startMinuteOfDay: startLocal.hour * 60 + startLocal.minute,
+        bedtimeMinutesOfDay: bedtimeMinutesOfDay,
+      );
+      final endReasonLabel =
+          isGoalMet ? null : formatEndReasonLabel(record.endReason);
+
+      final cleanLabel = record.isClean ? 'Clean' : 'Modified';
+      final lateLabel = isLateNight ? ', late-night start' : '';
+      final reasonSemantics =
+          endReasonLabel != null ? ', reason: $endReasonLabel' : '';
+      final noteSemantics = hasNote ? ', note: ${record.note!.trim()}' : '';
       final semanticLabel =
-          '$dateStampLabel, $endTimeLabel, ${protocol.label}, ${isGoalMet ? 'Goal Met' : 'Ended Early'}, '
-          '$durationLabel ($deltaLabel), ${shortStageLabel(stage)}, started $startTimeLabel$moodLabel$noteLabel';
+          '$startDateLabel $weekdayLabel, $patternTag, ${isGoalMet ? 'Goal Met' : 'Ended Early'}, '
+          '$durationSemantics, $timeWindowLabel, $cleanLabel$lateLabel$reasonSemantics$noteSemantics';
 
       final rowItem = TimelineRecordItem(
         record: record,
         protocol: protocol,
-        metabolicStage: stage,
-        dateStampLabel: dateStampLabel,
-        endTimeLabel: endTimeLabel,
-        startTimeLabel: startTimeLabel,
-        durationLabel: durationLabel,
-        deltaLabel: deltaLabel,
-        progressRatio: progressRatio,
+        startDateLabel: startDateLabel,
+        weekdayLabel: weekdayLabel,
+        patternTag: patternTag,
+        baseDurationLabel: baseDurationLabel,
+        excessLabel: excessLabel,
+        shortfallLabel: shortfallLabel,
+        timeWindowLabel: timeWindowLabel,
         isGoalMet: isGoalMet,
+        isClean: record.isClean,
+        isLateNightStart: isLateNight,
+        endReasonLabel: endReasonLabel,
         hasNote: hasNote,
         semanticLabel: semanticLabel,
       );
@@ -401,48 +390,51 @@ class TimelineSnapshot {
       items.addAll(rows);
     }
 
-    // Build chart buckets.
-    final chartBuckets = switch (range) {
-      TimelineRange.d7 => _buildDailyBuckets(
-          dayCount: 7,
-          today: today,
-          dayBestMap: dayBestMap,
-          activeFast: activeFast,
-          nowUtc: nowUtc,
-          includeWeekdayLetters: true,
-        ),
-      TimelineRange.d30 => _buildDailyBuckets(
-          dayCount: 30,
-          today: today,
-          dayBestMap: dayBestMap,
-          activeFast: activeFast,
-          nowUtc: nowUtc,
-          includeWeekdayLetters: false,
-        ),
-      TimelineRange.all => _buildWeeklyBuckets(
-          today: today,
-          weekTotalMs: weekTotalMs,
-          weekCounts: weekCounts,
-          weekGoalMet: weekGoalMet,
-          defaultTargetMin: defaultTargetMin,
-        ),
-    };
+    // Build visible month calendar days.
+    final daysInMonth =
+        DateTime(targetMonth.year, targetMonth.month + 1, 0).day;
+    final calendarDays = <CalendarDaySummary>[];
+    for (int d = 1; d <= daysInMonth; d++) {
+      final date = DateTime(targetMonth.year, targetMonth.month, d);
+      final isToday = date == today;
+      final best = dayBestMap[date];
+      final hasActive = isToday && activeFast != null;
 
-    double maxH = defaultTargetMin / 60.0 + 2.0;
-    for (final bucket in chartBuckets) {
-      final h = bucket.duration.inMinutes / 60.0;
-      if (h > maxH) maxH = h;
+      if (best != null) {
+        final durLabel = formatDuration(best.elapsedDuration());
+        final status = best.isGoalMet
+            ? CalendarDayStatus.goalMet
+            : CalendarDayStatus.endedEarly;
+        final statusText = best.isGoalMet ? 'Goal Met' : 'Ended Early';
+        calendarDays.add(
+          CalendarDaySummary(
+            date: date,
+            dayNumber: d,
+            status: status,
+            durationLabel: durLabel,
+            isToday: isToday,
+            hasActiveFast: hasActive,
+            tooltipLabel: '$durLabel · $statusText',
+          ),
+        );
+      } else {
+        calendarDays.add(
+          CalendarDaySummary(
+            date: date,
+            dayNumber: d,
+            status: CalendarDayStatus.none,
+            durationLabel: null,
+            isToday: isToday,
+            hasActiveFast: hasActive,
+            tooltipLabel: hasActive ? 'Active' : 'No fast',
+          ),
+        );
+      }
     }
-    if (maxH < 12.0) maxH = 12.0;
-    final maxChartHours = (maxH / 2.0).ceil() * 2.0;
 
-    final completionPercentInRange = rangeTotalCount == 0
+    final goalMetPercent = allTimeCount == 0
         ? 0
-        : ((rangeGoalMetCount * 100) / rangeTotalCount).round();
-    final averageDurationInRange = rangeTotalCount == 0
-        ? Duration.zero
-        : Duration(milliseconds: rangeTotalMs ~/ rangeTotalCount);
-    final longestDurationInRange = Duration(milliseconds: rangeLongestMs);
+        : ((allTimeGoalMet * 100) / allTimeCount).round();
     final allTimeAverageDuration = allTimeCount == 0
         ? Duration.zero
         : Duration(milliseconds: allTimeTotalMs ~/ allTimeCount);
@@ -450,160 +442,53 @@ class TimelineSnapshot {
     return TimelineSnapshot(
       currentStreak: currentStreak,
       bestStreak: bestStreak,
-      range: range,
-      totalFastsInRange: rangeTotalCount,
-      goalMetCountInRange: rangeGoalMetCount,
-      completionPercentInRange: completionPercentInRange,
-      averageDurationInRange: averageDurationInRange,
-      longestDurationInRange: longestDurationInRange,
+      totalCompletedFasts: allTimeCount,
+      goalMetCount: allTimeGoalMet,
+      goalMetPercent: goalMetPercent,
       allTimeAverageDuration: allTimeAverageDuration,
-      allCount: allCount,
-      goalMetCount: goalMetCount,
-      endedEarlyCount: endedEarlyCount,
-      withNotesCount: withNotesCount,
-      chartBuckets: List.unmodifiable(chartBuckets),
-      defaultTargetMin: defaultTargetMin,
-      maxChartHours: maxChartHours,
+      visibleMonth: targetMonth,
+      monthTitle: _calendarMonthFmt.format(targetMonth),
+      calendarDays: List.unmodifiable(calendarDays),
       items: List.unmodifiable(items),
     );
   }
 
-  static List<ChartBarBucket> _buildDailyBuckets({
-    required int dayCount,
-    required DateTime today,
-    required Map<DateTime, ({FastRecord best, int count, int goalMetCount})>
-        dayBestMap,
+  /// Lightweight 7-day status builder for [FastingController.lastSevenDaysSummary].
+  static List<DayFastSummary> buildLastSevenDays({
+    required List<FastRecord> history,
     required FastRecord? activeFast,
     required DateTime nowUtc,
-    required bool includeWeekdayLetters,
   }) {
-    final buckets = <ChartBarBucket>[];
-    for (int i = dayCount - 1; i >= 0; i--) {
-      final date = DateTime(today.year, today.month, today.day - i);
-      final isToday = i == 0;
-      final entry = dayBestMap[date];
-      final axisLabel = includeWeekdayLetters
-          ? '${_weekdayLetterFmt.format(date).substring(0, 1)}\n${date.day}'
-          : (isToday ? 'Today' : _monthDayShortFmt.format(date));
-      final readoutLabel = _dayHeaderThisYearFmt.format(date);
+    final nowLocal = nowUtc.toLocal();
+    final today = DateTime(nowLocal.year, nowLocal.month, nowLocal.day);
+    final windowStart = DateTime(today.year, today.month, today.day - 6);
 
-      if (entry != null) {
-        final best = entry.best;
-        buckets.add(
-          ChartBarBucket(
-            startDateLocal: date,
-            endDateLocal: date,
-            axisLabel: axisLabel,
-            readoutLabel: readoutLabel,
-            duration: best.elapsedDuration(),
-            status: best.isGoalMet
-                ? DayFastStatus.goalMet
-                : DayFastStatus.completedBelowGoal,
-            primaryRecord: best,
-            recordCount: entry.count,
-            goalMetCount: entry.goalMetCount,
-            isToday: isToday,
-            isWeekly: false,
-          ),
-        );
-      } else if (isToday && activeFast != null) {
-        buckets.add(
-          ChartBarBucket(
-            startDateLocal: date,
-            endDateLocal: date,
-            axisLabel: axisLabel,
-            readoutLabel: 'Today',
-            duration: activeFast.elapsedDuration(nowUtc),
-            status: DayFastStatus.active,
-            primaryRecord: null,
-            recordCount: 0,
-            goalMetCount: 0,
-            isToday: true,
-            isWeekly: false,
-          ),
-        );
-      } else {
-        buckets.add(
-          ChartBarBucket(
-            startDateLocal: date,
-            endDateLocal: date,
-            axisLabel: axisLabel,
-            readoutLabel: readoutLabel,
-            duration: Duration.zero,
-            status: DayFastStatus.none,
-            primaryRecord: null,
-            recordCount: 0,
-            goalMetCount: 0,
-            isToday: isToday,
-            isWeekly: false,
-          ),
-        );
+    final dayStatus = <DateTime, DayFastStatus>{};
+    for (final record in history) {
+      final endLocal = record.endTimeLocal;
+      if (endLocal == null) continue;
+      final endDay = DateTime(endLocal.year, endLocal.month, endLocal.day);
+      if (endDay.isBefore(windowStart) || endDay.isAfter(today)) continue;
+
+      final candidate = record.isGoalMet
+          ? DayFastStatus.goalMet
+          : DayFastStatus.completedBelowGoal;
+      final existing = dayStatus[endDay];
+      if (existing == null ||
+          (candidate == DayFastStatus.goalMet &&
+              existing != DayFastStatus.goalMet)) {
+        dayStatus[endDay] = candidate;
       }
     }
-    return buckets;
-  }
 
-  static List<ChartBarBucket> _buildWeeklyBuckets({
-    required DateTime today,
-    required List<int> weekTotalMs,
-    required List<int> weekCounts,
-    required List<int> weekGoalMet,
-    required int defaultTargetMin,
-  }) {
-    const maxWeeks = 12;
-    final weekBuckets = <ChartBarBucket>[];
-
-    for (int w = maxWeeks - 1; w >= 0; w--) {
-      final weekEnd = DateTime(today.year, today.month, today.day - w * 7);
-      final weekStart =
-          DateTime(weekEnd.year, weekEnd.month, weekEnd.day - 6);
-
-      final count = weekCounts[w];
-      final totalMs = weekTotalMs[w];
-      final goalMet = weekGoalMet[w];
-
-      final avgDuration = count == 0
-          ? Duration.zero
-          : Duration(milliseconds: totalMs ~/ count);
-      final DayFastStatus status;
-      if (count == 0) {
-        status = DayFastStatus.none;
-      } else if (avgDuration.inMinutes >= defaultTargetMin ||
-          goalMet * 2 >= count) {
-        status = DayFastStatus.goalMet;
-      } else {
-        status = DayFastStatus.completedBelowGoal;
+    return List<DayFastSummary>.generate(7, (i) {
+      final date = DateTime(today.year, today.month, today.day - (6 - i));
+      final isToday = date == today;
+      var status = dayStatus[date] ?? DayFastStatus.none;
+      if (status == DayFastStatus.none && isToday && activeFast != null) {
+        status = DayFastStatus.active;
       }
-
-      final startStr = _monthDayShortFmt.format(weekStart);
-      final endStr = weekStart.month == weekEnd.month
-          ? '${weekEnd.day}'
-          : _monthDayShortFmt.format(weekEnd);
-
-      weekBuckets.add(
-        ChartBarBucket(
-          startDateLocal: weekStart,
-          endDateLocal: weekEnd,
-          axisLabel: startStr,
-          readoutLabel: '$startStr–$endStr',
-          duration: avgDuration,
-          status: status,
-          primaryRecord: null,
-          recordCount: count,
-          goalMetCount: goalMet,
-          isToday: w == 0,
-          isWeekly: true,
-        ),
-      );
-    }
-
-    // Trim leading empty weeks when user has fewer than 12 weeks of history,
-    // keeping at least the most recent 4 weeks for visual stability.
-    int firstNonEmpty = weekBuckets.indexWhere((b) => b.recordCount > 0);
-    if (firstNonEmpty == -1) {
-      return weekBuckets.sublist(maxWeeks - 4);
-    }
-    final keepFrom = math.min(firstNonEmpty, maxWeeks - 4);
-    return weekBuckets.sublist(keepFrom);
+      return DayFastSummary(localDate: date, status: status);
+    });
   }
 }

@@ -5,7 +5,7 @@ import 'package:fast_oclock/services/database_service.dart';
 import 'package:fast_oclock/services/notification_service.dart';
 import 'package:fast_oclock/services/preferences_service.dart';
 import 'package:fast_oclock/state/fasting_controller.dart';
-import 'package:fast_oclock/widgets/timeline_chart.dart';
+import 'package:fast_oclock/widgets/timeline_calendar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -31,6 +31,8 @@ void main() {
     int targetDurationMin = 960,
     String? mood,
     String? note,
+    bool isClean = true,
+    String? endReason,
   }) async {
     final endLocal = DateTime(2026, 11, 24 - daysAgo, 10, 0);
     final endMs = endLocal.toUtc().millisecondsSinceEpoch;
@@ -44,6 +46,8 @@ void main() {
         targetDurationMin: targetDurationMin,
         mood: mood,
         note: note,
+        isClean: isClean,
+        endReason: endReason,
         createdAtMs: startMs,
         updatedAtMs: endMs,
       ),
@@ -104,22 +108,22 @@ void main() {
   }
 
   testWidgets(
-      'renders redesigned header, KPIs, chart, month header, distinct moods, and no FAB',
+      'renders header, 3-stat KPI strip, calendar, timeline spine, neutral cards, and no FAB',
       (WidgetTester tester) async {
     setPhoneViewport(tester);
     await tester.runAsync(() async {
       await seedFast(
-        id: 'f_great',
+        id: 'f_met',
         daysAgo: 1,
         durationHours: 17,
-        mood: 'great',
+        isClean: false,
         note: 'Clean energy',
       );
       await seedFast(
-        id: 'f_bad',
+        id: 'f_early',
         daysAgo: 2,
         durationHours: 10,
-        mood: 'bad',
+        endReason: 'hungry',
       );
       await controller.init();
     });
@@ -130,68 +134,23 @@ void main() {
     expect(find.text('Timeline'), findsOneWidget);
     expect(find.text('Log Fast'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsNothing);
-    expect(find.byType(DurationBarChart), findsOneWidget);
+    expect(find.byType(TimelineCalendar), findsOneWidget);
+    expect(find.text('November 2026'), findsOneWidget);
     expect(find.text('NOVEMBER 2026'), findsOneWidget);
-    expect(find.text('Streak · Best 1d'), findsOneWidget);
+    expect(find.text('Best 1d'), findsOneWidget);
     expect(find.text('50%'), findsOneWidget);
 
-    // Distinct mood icons rendered & NOV 23 • MON • 10:00 AM format
-    expect(find.byIcon(Icons.sentiment_very_satisfied_rounded), findsOneWidget);
-    expect(
-      find.byIcon(Icons.sentiment_very_dissatisfied_rounded),
-      findsOneWidget,
-    );
-    expect(find.textContaining('NOV 23 • MON'), findsOneWidget);
-    expect(find.textContaining('10:00 AM'), findsWidgets);
+    expect(find.text('Goal Met'), findsWidgets);
+    expect(find.text('Ended Early'), findsOneWidget);
+    expect(find.text('Modified'), findsOneWidget);
+    expect(find.text('Hungry'), findsOneWidget);
+    expect(find.text('+1h'), findsOneWidget);
+    expect(find.text('-6h'), findsOneWidget);
+
     await cleanupController(tester);
   });
 
-  testWidgets('range toggle scopes KPIs, filter counts, and history list',
-      (WidgetTester tester) async {
-    await tester.runAsync(() async {
-      // 1 recent fast (within 7d) + 1 older fast (12 days ago)
-      await seedFast(id: 'recent', daysAgo: 1, durationHours: 16);
-      await seedFast(id: 'older', daysAgo: 12, durationHours: 10);
-      await controller.init();
-    });
-
-    await tester.pumpWidget(buildHarness());
-    await tester.pumpAndSettle();
-
-    // Default 7D when history <= 7: 1/1 = 100%, older 10h 00m fast hidden in 7D
-    expect(find.text('100%'), findsOneWidget);
-    expect(find.text('All (1)'), findsOneWidget);
-    expect(find.text('10h 00m'), findsNothing);
-
-    // Switch to 30D: 1/2 = 50%, older 10h 00m fast is now shown
-    await tester.tap(find.text('30D'));
-    await tester.pumpAndSettle();
-    expect(find.text('50%'), findsOneWidget);
-    expect(find.text('All (2)'), findsOneWidget);
-    expect(find.text('10h 00m'), findsWidgets);
-    await cleanupController(tester);
-  });
-
-  testWidgets('empty 7D period offers Show All that switches to All range',
-      (WidgetTester tester) async {
-    await tester.runAsync(() async {
-      await seedFast(id: 'older_only', daysAgo: 15, durationHours: 16);
-      await controller.init();
-    });
-
-    await tester.pumpWidget(buildHarness());
-    await tester.pumpAndSettle();
-
-    expect(find.text('No fasts in this period'), findsOneWidget);
-    await tester.tap(find.text('Show All'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('No fasts in this period'), findsNothing);
-    expect(find.text('16h 00m'), findsWidgets);
-    await cleanupController(tester);
-  });
-
-  testWidgets('empty filter shows reset message and Show All restores items',
+  testWidgets('calendar month navigation and day tap tooltip work',
       (WidgetTester tester) async {
     setPhoneViewport(tester);
     await tester.runAsync(() async {
@@ -202,17 +161,16 @@ void main() {
     await tester.pumpWidget(buildHarness());
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Notes (0)'));
+    // Tap day 23 on November 2026 calendar
+    await tester.tap(find.text('23'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Notes (0)'));
-    await tester.pumpAndSettle();
+    expect(find.text('23 · 16h 00m · Goal Met'), findsOneWidget);
 
-    expect(find.text('No fasts match this filter'), findsOneWidget);
-    await tester.tap(find.text('Show All'));
+    // Navigate to October 2026
+    await tester.tap(find.byTooltip('Previous month'));
     await tester.pumpAndSettle();
+    expect(find.text('October 2026'), findsOneWidget);
 
-    expect(find.text('No fasts match this filter'), findsNothing);
-    expect(find.text('16h 00m'), findsWidgets);
     await cleanupController(tester);
   });
 
@@ -227,7 +185,6 @@ void main() {
       );
     });
 
-    // Re-bind the periodic timer inside the FakeAsync zone controlled by tester.pump.
     controller.didChangeAppLifecycleState(AppLifecycleState.paused);
     controller.didChangeAppLifecycleState(AppLifecycleState.resumed);
 
@@ -249,26 +206,26 @@ void main() {
     await cleanupController(tester);
   });
 
-  testWidgets('focusedRecordId invokes callback and highlights target card',
+  testWidgets('focusedRecordId highlights target record and calls handler',
       (WidgetTester tester) async {
+    setPhoneViewport(tester);
     await tester.runAsync(() async {
-      await seedFast(id: 'target_fast', daysAgo: 1, durationHours: 17);
-      await seedFast(id: 'other_fast', daysAgo: 2, durationHours: 16);
+      await seedFast(id: 'target_id', daysAgo: 1, durationHours: 16);
       await controller.init();
     });
 
     bool handled = false;
     await tester.pumpWidget(
       buildHarness(
-        focusedRecordId: 'target_fast',
+        focusedRecordId: 'target_id',
         onFocusedRecordHandled: () => handled = true,
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(handled, isTrue);
 
-    // Wait out 1200ms highlight timer cleanly before teardown
     await tester.pump(const Duration(milliseconds: 1300));
     await cleanupController(tester);
   });

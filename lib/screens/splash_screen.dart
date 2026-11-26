@@ -8,7 +8,7 @@ class SplashScreen extends StatefulWidget {
   const SplashScreen({
     super.key,
     required this.onFinished,
-    this.duration = const Duration(milliseconds: 950),
+    this.duration = const Duration(milliseconds: 1250),
   });
 
   final VoidCallback onFinished;
@@ -34,12 +34,12 @@ class _SplashScreenState extends State<SplashScreen>
 
     _progress = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.0, 0.78, curve: Curves.easeOutCubic),
+      curve: const Interval(0.12, 0.82, curve: Curves.easeOutCubic),
     );
 
     _fadeOut = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.78, 1.0, curve: Curves.easeInOut),
+      curve: const Interval(0.82, 1.0, curve: Curves.easeInOut),
     );
 
     _controller.addStatusListener((status) {
@@ -48,7 +48,11 @@ class _SplashScreenState extends State<SplashScreen>
       }
     });
 
-    _controller.forward();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _controller.forward();
+      }
+    });
   }
 
   @override
