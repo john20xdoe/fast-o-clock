@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:fast_oclock/models/fast_record.dart';
 import 'package:fast_oclock/services/database_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -132,45 +135,50 @@ void main() {
 
     test('upgrades v1 schema to v2 with is_clean default 1 and end_reason null',
         () async {
-      final db = await openDatabase(
-        inMemoryDatabasePath,
-        version: 1,
-        onCreate: (db, version) async {
-          await db.execute('''
-            CREATE TABLE fast_records (
-              id TEXT PRIMARY KEY,
-              protocol_id TEXT NOT NULL,
-              start_time_ms INTEGER NOT NULL,
-              end_time_ms INTEGER,
-              target_duration_min INTEGER NOT NULL,
-              note TEXT,
-              mood TEXT,
-              created_at_ms INTEGER NOT NULL,
-              updated_at_ms INTEGER NOT NULL
-            )
-          ''');
-        },
-      );
-      await db.insert('fast_records', {
-        'id': 'v1_rec',
-        'protocol_id': '16_8',
-        'start_time_ms': baseNowMs - 16 * 3600000,
-        'end_time_ms': baseNowMs,
-        'target_duration_min': 960,
-        'note': null,
-        'mood': null,
-        'created_at_ms': baseNowMs - 16 * 3600000,
-        'updated_at_ms': baseNowMs,
-      });
-      final path = db.path;
-      await db.close();
+      final tempDir = Directory.systemTemp.createTempSync('fast_oclock_db_');
+      final dbPath = p.join(tempDir.path, 'v1_upgrade.db');
+      try {
+        final db = await openDatabase(
+          dbPath,
+          version: 1,
+          onCreate: (db, version) async {
+            await db.execute('''
+              CREATE TABLE fast_records (
+                id TEXT PRIMARY KEY,
+                protocol_id TEXT NOT NULL,
+                start_time_ms INTEGER NOT NULL,
+                end_time_ms INTEGER,
+                target_duration_min INTEGER NOT NULL,
+                note TEXT,
+                mood TEXT,
+                created_at_ms INTEGER NOT NULL,
+                updated_at_ms INTEGER NOT NULL
+              )
+            ''');
+          },
+        );
+        await db.insert('fast_records', {
+          'id': 'v1_rec',
+          'protocol_id': '16_8',
+          'start_time_ms': baseNowMs - 16 * 3600000,
+          'end_time_ms': baseNowMs,
+          'target_duration_min': 960,
+          'note': null,
+          'mood': null,
+          'created_at_ms': baseNowMs - 16 * 3600000,
+          'updated_at_ms': baseNowMs,
+        });
+        await db.close();
 
-      final upgradedService = DatabaseService(overridePath: path);
-      final record = await upgradedService.getRecordById('v1_rec');
-      expect(record, isNotNull);
-      expect(record!.isClean, isTrue);
-      expect(record.endReason, isNull);
-      await upgradedService.close();
+        final upgradedService = DatabaseService(overridePath: dbPath);
+        final record = await upgradedService.getRecordById('v1_rec');
+        expect(record, isNotNull);
+        expect(record!.isClean, isTrue);
+        expect(record.endReason, isNull);
+        await upgradedService.close();
+      } finally {
+        tempDir.deleteSync(recursive: true);
+      }
     });
   });
 }
