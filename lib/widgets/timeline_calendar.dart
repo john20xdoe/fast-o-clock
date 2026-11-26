@@ -24,23 +24,29 @@ class TimelineCalendar extends StatefulWidget {
 
 class _TimelineCalendarState extends State<TimelineCalendar> {
   static const List<String> _weekdays = [
+    'S',
     'M',
     'T',
     'W',
     'T',
     'F',
     'S',
-    'S',
   ];
 
   DateTime? _selectedDate;
+  final Map<DateTime, GlobalKey<TooltipState>> _tooltipKeys = {};
 
   @override
   void didUpdateWidget(covariant TimelineCalendar oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.monthTitle != widget.monthTitle) {
       _selectedDate = null;
+      _tooltipKeys.clear();
     }
+  }
+
+  GlobalKey<TooltipState> _keyFor(DateTime date) {
+    return _tooltipKeys.putIfAbsent(date, () => GlobalKey<TooltipState>());
   }
 
   @override
@@ -48,25 +54,15 @@ class _TimelineCalendarState extends State<TimelineCalendar> {
     final theme = Theme.of(context);
     if (widget.days.isEmpty) return const SizedBox.shrink();
 
-    final leadingEmpty = widget.days.first.date.weekday - 1;
+    final leadingEmpty = widget.days.first.date.weekday % 7;
     final totalCells = leadingEmpty + widget.days.length;
     final rowCount = (totalCells / 7).ceil();
-
-    CalendarDaySummary? selectedDay;
-    if (_selectedDate != null) {
-      for (final d in widget.days) {
-        if (d.date == _selectedDate) {
-          selectedDay = d;
-          break;
-        }
-      }
-    }
 
     return Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
         child: Column(
           children: [
             Row(
@@ -131,25 +127,6 @@ class _TimelineCalendarState extends State<TimelineCalendar> {
                   }),
                 ),
               ),
-            if (selectedDay != null) ...[
-              const SizedBox(height: 6),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest
-                      .withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${selectedDay.dayNumber} · ${selectedDay.tooltipLabel}',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -189,39 +166,49 @@ class _TimelineCalendarState extends State<TimelineCalendar> {
       border = null;
     }
 
+    final tooltipKey = _keyFor(day.date);
+
     return Semantics(
       button: true,
       selected: isSelected,
       label: 'Day ${day.dayNumber}: ${day.tooltipLabel}',
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _selectedDate = isSelected ? null : day.date;
-          });
-        },
-        borderRadius: BorderRadius.circular(18),
-        child: SizedBox(
-          height: 36,
-          child: Center(
-            child: Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: fillColor,
-                shape: BoxShape.circle,
-                border: border,
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                '${day.dayNumber}',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: textColor,
-                  fontWeight: (day.status != CalendarDayStatus.none ||
-                          day.isToday ||
-                          isSelected)
-                      ? FontWeight.bold
-                      : FontWeight.normal,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+      child: Tooltip(
+        key: tooltipKey,
+        message: '${day.dayNumber} · ${day.tooltipLabel}',
+        preferBelow: false,
+        verticalOffset: 20,
+        triggerMode: TooltipTriggerMode.manual,
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _selectedDate = isSelected ? null : day.date;
+            });
+            tooltipKey.currentState?.ensureTooltipVisible();
+          },
+          borderRadius: BorderRadius.circular(18),
+          child: SizedBox(
+            height: 36,
+            child: Center(
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: fillColor,
+                  shape: BoxShape.circle,
+                  border: border,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '${day.dayNumber}',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: textColor,
+                    fontWeight: (day.status != CalendarDayStatus.none ||
+                            day.isToday ||
+                            isSelected)
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ),

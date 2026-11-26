@@ -166,10 +166,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('23 · 16h 00m · Goal Met'), findsOneWidget);
 
-    // Navigate to October 2026
+    // Navigate to October 2026 -> list filters to October (empty here)
     await tester.tap(find.byTooltip('Previous month'));
     await tester.pumpAndSettle();
     expect(find.text('October 2026'), findsOneWidget);
+    expect(find.text('No fasts in October 2026'), findsOneWidget);
+    expect(find.text('NOVEMBER 2026'), findsNothing);
 
     await cleanupController(tester);
   });

@@ -247,6 +247,11 @@ class TimelineSnapshot {
         }
       }
 
+      final monthKey = (endLocal.year, endLocal.month);
+      if (monthKey != (targetMonth.year, targetMonth.month)) {
+        continue;
+      }
+
       final protocol = FastProtocol.resolve(
         record.protocolId,
         customDurationMin: record.targetDurationMin,
@@ -320,7 +325,6 @@ class TimelineSnapshot {
         semanticLabel: semanticLabel,
       );
 
-      final monthKey = (endLocal.year, endLocal.month);
       final bucketList = monthRecords[monthKey];
       if (bucketList == null) {
         monthOrder.add(monthKey);

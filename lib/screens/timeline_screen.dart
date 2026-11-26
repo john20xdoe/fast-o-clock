@@ -126,10 +126,28 @@ class _TimelineScreenState extends State<TimelineScreen> {
       (item) => item is TimelineRecordItem && item.record.id == targetId,
     );
 
+    if (targetIndex == -1) {
+      final controller = context.read<FastingController>();
+      for (final r in controller.history) {
+        if (r.id == targetId && r.endTimeLocal != null) {
+          final targetMonth =
+              DateTime(r.endTimeLocal!.year, r.endTimeLocal!.month, 1);
+          if (targetMonth != snapshot.visibleMonth) {
+            setState(() {
+              _visibleMonth = targetMonth;
+            });
+            return;
+          }
+          break;
+        }
+      }
+      _pendingFocusedId = null;
+      widget.onFocusedRecordHandled?.call();
+      return;
+    }
+
     _pendingFocusedId = null;
     widget.onFocusedRecordHandled?.call();
-
-    if (targetIndex == -1) return;
 
     _highlightTimer?.cancel();
     setState(() {
@@ -325,6 +343,40 @@ class _TimelineScreenState extends State<TimelineScreen> {
                           ),
                         ),
                       )
+                    else if (snapshot.items.isEmpty)
+                      DecoratedSliver(
+                        decoration: BoxDecoration(
+                          color: theme.brightness == Brightness.dark
+                              ? Colors.black
+                              : null,
+                        ),
+                        sliver: SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.event_busy_rounded,
+                                    size: 40,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'No fasts in ${snapshot.monthTitle}',
+                                    style:
+                                        theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
                     else
                       DecoratedSliver(
                         decoration: BoxDecoration(
@@ -377,45 +429,59 @@ class _TimelineScreenState extends State<TimelineScreen> {
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+        child: Column(
           children: [
-            Expanded(
-              child: _buildKpiCell(
-                context,
-                label: 'Streak',
-                value: '${snapshot.currentStreak}d',
-                sublabel: 'Best ${snapshot.bestStreak}d',
+            Text(
+              'ALL-TIME',
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.0,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            Container(
-              width: 1,
-              height: 28,
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-            ),
-            Expanded(
-              child: _buildKpiCell(
-                context,
-                label: 'Avg Duration',
-                value: TimelineSnapshot.formatDuration(
-                  snapshot.allTimeAverageDuration,
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildKpiCell(
+                    context,
+                    label: 'Streak',
+                    value: '${snapshot.currentStreak}d',
+                    sublabel: 'Best ${snapshot.bestStreak}d',
+                  ),
                 ),
-                sublabel: '${snapshot.totalCompletedFasts} fasts',
-              ),
-            ),
-            Container(
-              width: 1,
-              height: 28,
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-            ),
-            Expanded(
-              child: _buildKpiCell(
-                context,
-                label: 'Goal Met',
-                value: '${snapshot.goalMetPercent}%',
-                sublabel:
-                    '${snapshot.goalMetCount}/${snapshot.totalCompletedFasts}',
-              ),
+                Container(
+                  width: 1,
+                  height: 28,
+                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
+                Expanded(
+                  child: _buildKpiCell(
+                    context,
+                    label: 'Avg Duration',
+                    value: TimelineSnapshot.formatDuration(
+                      snapshot.allTimeAverageDuration,
+                    ),
+                    sublabel: '${snapshot.totalCompletedFasts} fasts',
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 28,
+                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
+                Expanded(
+                  child: _buildKpiCell(
+                    context,
+                    label: 'Goal Met',
+                    value: '${snapshot.goalMetPercent}%',
+                    sublabel:
+                        '${snapshot.goalMetCount}/${snapshot.totalCompletedFasts}',
+                  ),
+                ),
+              ],
             ),
           ],
         ),
