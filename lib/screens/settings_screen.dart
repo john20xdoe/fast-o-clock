@@ -11,6 +11,7 @@ import '../models/fast_protocol.dart';
 import '../services/backup_service.dart';
 import '../state/fasting_controller.dart';
 import '../widgets/protocol_picker.dart';
+import '../widgets/tumbler_date_time_picker.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -87,15 +88,21 @@ class SettingsScreen extends StatelessWidget {
                             )
                           : const Icon(Icons.chevron_right_rounded),
                       onTap: () async {
-                        final initial = settings.bedtimeMinutesOfDay != null
-                            ? TimeOfDay(
-                                hour: settings.bedtimeMinutesOfDay! ~/ 60,
-                                minute: settings.bedtimeMinutesOfDay! % 60,
-                              )
-                            : const TimeOfDay(hour: 23, minute: 0);
-                        final picked = await showTimePicker(
-                          context: context,
-                          initialTime: initial,
+                        final now = DateTime.now();
+                        final initialMin =
+                            settings.bedtimeMinutesOfDay ?? (23 * 60);
+                        final initialDt = DateTime(
+                          now.year,
+                          now.month,
+                          now.day,
+                          initialMin ~/ 60,
+                          initialMin % 60,
+                        );
+                        final picked = await TumblerDateTimePicker.showModal(
+                          context,
+                          title: 'Typical Bedtime',
+                          initialDateTimeLocal: initialDt,
+                          showDate: false,
                         );
                         if (picked != null) {
                           await controller.updateBedtime(

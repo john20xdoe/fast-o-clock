@@ -5,6 +5,7 @@ class TumblerDateTimePicker extends StatefulWidget {
   final ValueChanged<DateTime> onChanged;
   final int minYear;
   final int? maxYear;
+  final bool showDate;
 
   const TumblerDateTimePicker({
     super.key,
@@ -12,12 +13,14 @@ class TumblerDateTimePicker extends StatefulWidget {
     required this.onChanged,
     this.minYear = 2020,
     this.maxYear,
+    this.showDate = true,
   });
 
   static Future<DateTime?> showModal(
     BuildContext context, {
     required String title,
     required DateTime initialDateTimeLocal,
+    bool showDate = true,
   }) {
     DateTime selected = initialDateTimeLocal;
     return showDialog<DateTime>(
@@ -29,6 +32,7 @@ class TumblerDateTimePicker extends StatefulWidget {
           child: TumblerDateTimePicker(
             initialDateTimeLocal: initialDateTimeLocal,
             onChanged: (dt) => selected = dt,
+            showDate: showDate,
           ),
         ),
         actions: [
@@ -138,111 +142,115 @@ class _TumblerDateTimePickerState extends State<TumblerDateTimePicker> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'DATE',
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.8,
+        if (widget.showDate) ...[
+          Text(
+            'DATE',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          height: 136,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest
-                .withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Container(
-                height: 42,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.28),
+          const SizedBox(height: 6),
+          Container(
+            height: 136,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.28),
+                    ),
                   ),
                 ),
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: _buildWheel(
-                      controller: _yearCtrl,
-                      itemCount: yearCount,
-                      looping: false,
-                      labelBuilder: (i) => '${widget.minYear + i}',
-                      onChanged: (i) {
-                        setState(() {
-                          _year = widget.minYear + i;
-                          _clampDayIfNeeded();
-                        });
-                        _emitChanged();
-                      },
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: _buildWheel(
-                      controller: _monthCtrl,
-                      itemCount: 12,
-                      looping: true,
-                      labelBuilder: (i) => (i + 1).toString().padLeft(2, '0'),
-                      onChanged: (i) {
-                        setState(() {
-                          _month = (i % 12 + 12) % 12 + 1;
-                          _clampDayIfNeeded();
-                        });
-                        _emitChanged();
-                      },
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: _buildWheel(
-                      controller: _dayCtrl,
-                      itemCount: daysInMonth,
-                      looping: true,
-                      labelBuilder: (i) => (i + 1).toString().padLeft(2, '0'),
-                      onChanged: (i) {
-                        setState(() {
-                          _day = (i % daysInMonth + daysInMonth) % daysInMonth +
-                              1;
-                        });
-                        _emitChanged();
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Container(
-                    width: 48,
-                    height: 30,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      _weekdayLabel,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant
-                            .withValues(alpha: 0.75),
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: _buildWheel(
+                        controller: _yearCtrl,
+                        itemCount: yearCount,
+                        looping: false,
+                        labelBuilder: (i) => '${widget.minYear + i}',
+                        onChanged: (i) {
+                          setState(() {
+                            _year = widget.minYear + i;
+                            _clampDayIfNeeded();
+                          });
+                          _emitChanged();
+                        },
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    Expanded(
+                      flex: 2,
+                      child: _buildWheel(
+                        controller: _monthCtrl,
+                        itemCount: 12,
+                        looping: true,
+                        labelBuilder: (i) => (i + 1).toString().padLeft(2, '0'),
+                        onChanged: (i) {
+                          setState(() {
+                            _month = (i % 12 + 12) % 12 + 1;
+                            _clampDayIfNeeded();
+                          });
+                          _emitChanged();
+                        },
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: _buildWheel(
+                        controller: _dayCtrl,
+                        itemCount: daysInMonth,
+                        looping: true,
+                        labelBuilder: (i) => (i + 1).toString().padLeft(2, '0'),
+                        onChanged: (i) {
+                          setState(() {
+                            _day =
+                                (i % daysInMonth + daysInMonth) % daysInMonth +
+                                    1;
+                          });
+                          _emitChanged();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      width: 48,
+                      height: 30,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _weekdayLabel,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.75),
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 14),
+          const SizedBox(height: 14),
+        ],
         Text(
           'TIME',
           style: theme.textTheme.labelSmall?.copyWith(
@@ -276,7 +284,7 @@ class _TumblerDateTimePickerState extends State<TumblerDateTimePicker> {
               Row(
                 children: [
                   Expanded(
-                    flex: 2,
+                    flex: 3,
                     child: _buildWheel(
                       controller: _amPmCtrl,
                       itemCount: 2,
@@ -331,6 +339,7 @@ class _TumblerDateTimePickerState extends State<TumblerDateTimePicker> {
                       },
                     ),
                   ),
+                  const SizedBox(width: 60),
                 ],
               ),
             ],
