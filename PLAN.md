@@ -73,6 +73,44 @@ Focused plan for upgrading Tab 2 (`TimelineScreen`) and decoupling 1 Hz timer re
 
 ---
 
+## Phase 2 — Timeline Calendar, Spine, Editor Declutter & Bedtime (Planned)
+
+### Stage 1 — Data Model, Settings & Migration (`v1` → `v2`)
+- **`lib/models/fast_record.dart`**: Add `isClean` (`bool`, default `true`) and `endReason` (`String?`, nullable: `'hungry'`, `'social'`, `'unwell'`, `'other'`) with SQLite and backward-compatible JSON serialization.
+- **`lib/services/database_service.dart`**: Bump `_dbVersion` to `2` with `onUpgrade` adding `is_clean INTEGER NOT NULL DEFAULT 1` and `end_reason TEXT`.
+- **`lib/models/app_settings.dart` & `lib/services/preferences_service.dart`**: Add optional manual `bedtimeMinutesOfDay` (`int?`) with `SharedPreferences` persistence and JSON backup serialization.
+- **`lib/services/backup_service.dart`**: Bump `currentSchemaVersion = 2` and accept `schemaVersion` `1..2` on import so existing `v1` JSON backups restore seamlessly with defaults.
+- **`lib/state/fasting_controller.dart`**: Update `endActiveFast`, `addPastFast`, `updateCompletedFast` for `isClean`/`endReason`, and add `updateBedtime(int? minutesOfDay)`.
+
+### Stage 2 — Timeline View-Model & Month Calendar
+- **`lib/models/timeline_summary.dart`**:
+  - Replace bar-chart buckets and range/filter chip state with `CalendarDaySummary` (`goalMet`, `endedEarly`, `none`, `durationLabel`, `isToday`) for the visible month.
+  - Format `TimelineRecordItem` for the 3-line neutral card:
+    - Line 1: `startDateLabel` (`NOV 25`), `weekdayLabel` (`WED`), `patternTag` (`14:10`, `16:8`, etc.).
+    - Line 2: `baseDurationLabel` + optional `excessLabel` (`+2h 02m`) or `shortfallLabel` (`3h 59m` strikeout).
+    - Line 3: plain `timeWindowLabel` (`12:11 PM – 4:15 AM`), `isLateNightStart` (when within 2h before manual bedtime), `isClean`, `endReasonLabel`.
+- **`lib/widgets/timeline_calendar.dart`**:
+  - Month calendar (`< Month YYYY >`, 7-column Mon–Sun grid) with Green (`#00C853`) = Goal Met, Orange (`#FF8A00`) = Ended Early, Blank = No record, Ring = Today/Active.
+  - Tapping a day shows a compact tooltip chip (`16h 02m · Goal Met`, `Ended Early`, or `No fast`).
+
+### Stage 3 — `TimelineScreen`, `FastEditorSheet` & `SettingsScreen`
+- **`lib/screens/timeline_screen.dart`**:
+  - Remove `7D | 30D | All` toggle, `DurationBarChart` + readout panel, `FilterChip` row, left colored card strip, colored metabolic-stage pill, and colored mood icons.
+  - Compact 3-stat KPI strip (`Streak` | `Avg Duration` | `Goal Met %`), `TimelineCalendar`, and `SliverList.builder` with vertical timeline spine (`●──│` ... `▼`, newest first) and neutral cards (green/orange reserved strictly for `Goal Met` / `Ended Early` badge).
+- **`lib/widgets/fast_editor_sheet.dart`**:
+  - Replace bulky `Protocol` `ListTile` in `addPast`/`editPast` with compact target-hours chip row.
+  - Add `Clean` | `Modified` toggle (default `Clean`) with calorie-deficit helper copy (*"Clean: 0 kcal · Modified: low-cal aid to sustain your calorie deficit"*).
+  - Add conditional `Early-End Reason` chips (`Hungry`, `Social`, `Dizzy / Unwell`, `Other`) shown only when `actualDuration < targetDurationMin`.
+  - Collapse `Optional Note` behind `+ Add note` when empty.
+- **`lib/screens/settings_screen.dart`**: Add `Typical Bedtime` time picker (with clear option) under `Fasting Preferences`.
+
+### Stage 4 — Tests & Verification
+- Update `test/models/timeline_summary_test.dart`, `test/screens/timeline_screen_test.dart`, and `test/state/fasting_controller_test.dart` (plus SQLite `v1` → `v2` & `BackupService` `v1`/`v2` import tests).
+
+---
+
 ## Deferred (Future)
+- **Midnight-Crossover Visualization** — visual component showing connection across midnight (start day 1 PM → end day 2 AM).
+- **Optional Health Connect Sleep Sync (`READ_SLEEP`)** — automatic bedtime with manual fallback (see `design/PRIVACY_POLICY.md`).
 - **Day-Based / Recurring Fasting Patterns** (ADF, 1 day/week, 5-day) — deferred pending streak calculation analysis.
 - **Google Drive Backup** — deferred; focus on local file backup improvements first.
